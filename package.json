@@ -1,0 +1,50 @@
+{
+  "name": "claude-statusline-2",
+  "displayName": "Claude Statusline JF",
+  "description": "Barra de estado propia para Claude Code: modelo, uso de sesión/semana y plan de contratación.",
+  "version": "0.0.2",
+  "publisher": "javierferraz",
+  "private": true,
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "claudeStatusline2.refreshNow",
+        "title": "Claude Statusline 2: Refresh Now"
+      }
+    ],
+    "configuration": {
+      "title": "Claude Statusline 2",
+      "properties": {
+        "claudeStatusline2.refreshIntervalSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 15,
+          "description": "Cada cuántos segundos se llama a la API de Anthropic y se re-escanean los transcripts."
+        },
+        "claudeStatusline2.apiCacheSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 15,
+          "description": "Cuánto tiempo se reutiliza la última respuesta de la API de uso antes de volver a pedirla."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.0.0",
+    "typescript": "^5.4.0"
+  }
+}
