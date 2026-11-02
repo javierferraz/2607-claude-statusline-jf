@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cronos · prototipo 04 Minimal con ritmo en 4 tramos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Prototipo 04 = el 03 (02 Minimal + tiempo transcurrido del 01 + color por ritmo) con la regla de color
+   ampliada a pedido de Javier: tramo ámbar de aviso y tono azul para «vas muy corto».
+   Estimación al reset = consumo / tiempo transcurrido de la ventana (lineal; sesión 5 h, semana 7 d):
+     < 50 %      azul   sobra cuota: a este ritmo dejarías mucho sin gastar
+     50 – 85 %   verde  vas bien
+     85 – 100 %  ámbar  vas justo: llegas, pero casi sin margen
+     > 100 %     rojo   a este ritmo la agotas antes del reset
+     sin estimar gris   menos del 10 % de la ventana: un cociente tan pronto no dice nada
+   La marca de tiempo transcurrido pasa de ámbar a tinta (color de texto) para no confundirse con el tramo
+   ámbar. El acento (ámbar de la arena del icono) queda para foco y logo. Sin sombras. */
+:root {
+  --accent: #a8690f;
+  --sans: "Geist", "Segoe UI", system-ui, sans-serif;
+  --mono: "Geist Mono", Consolas, monospace;
+  --r: 6px; --r-lg: 10px;
+  --fs: 13px; --fs-s: 12px; --fs-xs: 11.5px;
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-line: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+:root, [data-theme="light"] {
+  --bg: #fbfbfa; --hover: #f1f1ef; --select: #ececea;
+  --line: #e6e6e3; --line-2: #d9d9d5; --line-soft: #efefed;
+  --text: #18181b; --text-2: #3f3f46; --muted: #71717a; --faint: #a1a1aa;
+  --ok: #1a8a47; --largo: #d12c2c; --nd: #9a9aa3; --corto: #2f6fc4; --justo: #d98a00;
+  --warn: #8a5a00; --warn-bg: #fbf3df; --warn-line: #e8d29b; --track: #ebebe8; --page: #ececea;
+}
+[data-theme="dark"] {
+  --accent: #f2b73d;
+  --bg: #0f0f11; --hover: #1d1d21; --select: #232328;
+  --line: #26262b; --line-2: #34343a; --line-soft: #1d1d21;
+  --text: #ececef; --text-2: #c2c2ca; --muted: #8d8d97; --faint: #5d5d67;
+  --ok: #3ecf74; --largo: #f2574c; --nd: #6b6b75; --corto: #5aa2ff; --justo: #f2b73d;
+  --warn: #e6b45a; --warn-bg: #2a2417; --warn-line: #57451f; --track: #26262b; --page: #08080a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: var(--fs)/1.5 var(--sans); background: var(--page); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+/* barra de la página de prototipo (no es parte de la app) */
+.demo { display: flex; gap: 20px; align-items: center; padding: 10px 18px; font-size: var(--fs-s); color: var(--muted); border-bottom: 1px solid var(--line); background: var(--bg); }
+.demo b { color: var(--text); font-weight: 600; }
+.seg { display: inline-flex; padding: 2px; gap: 2px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--bg); }
+.seg button { font: 500 12px var(--sans); padding: 3px 11px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--select); color: var(--text); }
+.seg button:focus-visible, .ic:focus-visible { outline: 0; box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent-line); }
+.escritorio { padding: 36px 16px 40px; display: flex; justify-content: center; }
+
+/* la ventana de Cronos */
+.win { width: 720px; background: var(--bg); border: 1px solid var(--line-2); border-radius: var(--r-lg); overflow: hidden; }
+.head { display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--line); cursor: move; user-select: none; }
+.head img { width: 22px; height: 22px; display: block; border-radius: 5px; }
+.head .t { font: 600 15px var(--sans); letter-spacing: -.01em; }
+.head .c { font: 400 var(--fs-xs) var(--mono); color: var(--faint); }
+.head .sp { flex: 1; }
+.head .act { font: 400 var(--fs-xs) var(--mono); color: var(--faint); margin-right: 6px; }
+.ic { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--r); background: transparent; color: var(--muted); font-size: 14px; cursor: pointer; }
+.ic:hover { background: var(--hover); color: var(--text); }
+.ic[aria-pressed="true"] { color: var(--text); background: var(--select); }
+
+.cuenta { padding: 13px 16px 14px; border-bottom: 1px solid var(--line-soft); }
+.cuenta:hover { background: var(--hover); }
+.l1 { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; min-width: 0; }
+.l1 .n { font: 600 var(--fs) var(--sans); letter-spacing: -.005em; white-space: nowrap; }
+.l1 .e { font: 400 var(--fs-xs) var(--mono); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.l1 .sp { flex: 1; }
+.l1 .m { font-size: var(--fs-xs); color: var(--faint); white-space: nowrap; }
+.l1 .m b { font: 500 var(--fs-xs) var(--mono); color: var(--text-2); }
+.l1 .p { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
+.stale { font-size: var(--fs-xs); color: var(--warn); white-space: nowrap; flex-shrink: 0; cursor: help; }
+
+.par { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+.v { --est: var(--nd); }
+.v.ok { --est: var(--ok); } .v.largo { --est: var(--largo); } .v.corto { --est: var(--corto); } .v.justo { --est: var(--justo); }
+.v .top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px; }
+.v .lb { font-size: var(--fs-xs); color: var(--muted); }
+.v .pc { font: 500 15px/1 var(--mono); letter-spacing: -.02em; color: var(--text); }
+.v.ok .pc, .v.largo .pc, .v.corto .pc, .v.justo .pc { color: var(--est); }
+.v .pc i, .v .pj i { font: 400 var(--fs-xs) var(--mono); font-style: normal; color: var(--faint); margin-left: 1px; }
+.v .pj { font: 400 var(--fs-xs) var(--mono); color: var(--est); white-space: nowrap; }
+.v.nd .pj { color: var(--faint); }
+.v .rs { margin-left: auto; font-size: var(--fs-xs); color: var(--faint); white-space: nowrap; }
+.v .rs b { font: 500 var(--fs-xs) var(--mono); color: var(--muted); }
+.pista { position: relative; height: 4px; border-radius: 2px; background: var(--track); }
+.pista .lleno { height: 100%; background: var(--est); border-radius: 2px; }
+/* firma funcional (del prototipo 01, en el estilo del 02): tiempo transcurrido de la ventana */
+.pista .marca { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--text); border-radius: 1px; outline: 1px solid var(--bg); }
+
+.aviso { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: var(--fs-s); color: var(--warn); background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: var(--r); }
+
+.leyenda { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 9px 16px; border-top: 1px solid var(--line); font-size: var(--fs-xs); color: var(--muted); background: var(--bg); }
+.leyenda .sp { flex: 1; }
+.leyenda i.pt { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+.leyenda i.pt.corto { background: var(--corto); } .leyenda i.pt.justo { background: var(--justo); } .leyenda i.pt.ok { background: var(--ok); } .leyenda i.pt.largo { background: var(--largo); } .leyenda i.pt.nd { background: var(--nd); }
+.leyenda i.mk { display: inline-block; width: 2px; height: 11px; background: var(--text); margin-right: 6px; vertical-align: -2px; }
+.leyenda .mo { font-family: var(--mono); color: var(--text-2); }
+
+.nota { max-width: 720px; margin: 18px auto 0; font-size: var(--fs-s); line-height: 1.55; color: var(--muted); }
+.nota b { color: var(--text); font-weight: 600; }
+
+/* procedencia: qué viene de cada prototipo y qué es nuevo */
+body.ver-origen [data-note] { outline: 1px dashed var(--accent); outline-offset: 2px; position: relative; }
+body.ver-origen [data-note]::after { content: attr(data-note); position: absolute; left: 0; top: -17px; z-index: 5; padding: 0 5px; font: 500 10px/15px var(--sans); color: var(--bg); background: var(--accent); border-radius: 3px; white-space: nowrap; pointer-events: none; }
+body.ver-origen .pista .marca::after { top: -19px; left: -4px; }
+body.ver-origen .leyenda[data-note]::after { top: -1px; left: auto; right: 8px; }
+/* etiquetas solo en la primera cuenta (para no tapar datos); en las demás basta el recuadro */
+body.ver-origen .cuenta:not(:first-child) [data-note]::after { display: none; }
+body.ver-origen .cuenta:first-child .pista .marca[data-note]::after { top: 12px; left: -50px; }
+body.ver-origen .cuenta:first-child .v:nth-child(2) .pista .marca[data-note]::after { left: -110px; }
+</style>
+</head>
+<body>
+<div class="demo">
+  <b>Cronos · 04 Minimal con ritmo en 4 tramos</b>
+  <span>Tema <span class="seg" id="seg-tema"><button data-v="light" aria-pressed="true">Claro</button><button data-v="dark" aria-pressed="false">Noche</button></span></span>
+  <span>Estado <span class="seg" id="seg-estado"><button data-v="ok" aria-pressed="true">Todo bien</button><button data-v="problemas" aria-pressed="false">Con avisos</button></span></span>
+  <span>Procedencia <span class="seg" id="seg-origen"><button data-v="0" aria-pressed="true">Ocultar</button><button data-v="1" aria-pressed="false">Mostrar</button></span></span>
+</div>
+
+<div class="escritorio">
+  <div>
+    <div class="win">
+      <div class="head">
+        <img src="data:image/png;base64,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" alt="">
+        <span class="t">Cronos</span>
+        <span class="c">4 cuentas</span>
+        <span class="sp"></span>
+        <span class="act">actualizado 11:35</span>
+        <button class="ic" id="b-tema" title="Claro / noche (novedad: hoy la app solo tiene tema oscuro)" data-from="2" data-note="Nuevo · tema claro/noche">☀</button>
+        <button class="ic" id="b-pin" aria-pressed="true" title="Siempre encima">📌</button>
+        <button class="ic" title="Refrescar ahora">⟳</button>
+        <button class="ic" title="Cerrar">✕</button>
+      </div>
+      <div id="cuentas"></div>
+      <div class="leyenda" data-from="new" data-note="Nuevo · leyenda del ritmo">
+        <span><i class="pt corto"></i>sobra cuota</span>
+        <span><i class="pt ok"></i>vas bien</span>
+        <span><i class="pt justo"></i>vas justo</span>
+        <span><i class="pt largo"></i>no llegas</span>
+        <span><i class="pt nd"></i>sin estimar</span>
+        <span class="sp"></span>
+        <span><i class="mk"></i>tiempo transcurrido</span>
+        <span class="mo">→ al reset</span>
+      </div>
+    </div>
+    <p class="nota">Datos de ejemplo, calculados a las 11:35 del lunes. <b>Color</b> = ritmo: consumo frente al tiempo que lleva abierta la ventana (azul sobra cuota, verde vas bien, ámbar vas justo, rojo no llegas). <b>Raya oscura</b> = cuánto tiempo de la ventana ha pasado. <b>→ 177 %</b> = a este ritmo, lo que llevarías al llegar al reset (estimación lineal: cuanto antes en la ventana, menos fiable). Sin estimar durante el primer 10 % de la ventana. Umbrales: 50 / 85 / 100 %. «Procedencia · Mostrar» marca qué es nuevo.</p>
+  </div>
+</div>
+
+<script>
+const fmt = m => { const d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), n = m % 60; return d ? `${d} d ${h} h` : h ? `${h} h ${n} min` : `${n} min`; };
+const base = [
+  { nombre: 'Ventas Funidelia', email: 'ventas@funidelia.es', org: 'Funidelia', plan: 'Team · Max 5x',
+    ses: { pct: 16, restan: 105, hora: '13:20' }, sem: { pct: 15, restan: 7465, hora: 'sáb 16:00' }, mensual: null },
+  { nombre: 'Ventas Echocontrol', email: 'ventas@echocontrol.app', org: 'EchoControl', plan: 'Max 5x',
+    ses: { pct: 62, restan: 195, hora: '14:50' }, sem: { pct: 41, restan: 2725, hora: 'mié 09:00' }, mensual: { usado: 3.5, limite: 50, moneda: 'USD' } },
+  { nombre: 'Javier', email: 'javier@thestromboliproject.com', org: 'The Stromboli Project', plan: 'Pro',
+    ses: { pct: 87, restan: 80, hora: '12:55' }, sem: { pct: 36, restan: 6145, hora: 'vie 18:00' }, mensual: null },
+  { nombre: 'Soporte', email: 'soporte@echocontrol.app', org: 'EchoControl', plan: 'Max 20x',
+    ses: { pct: 3, restan: 295, hora: '16:30' }, sem: { pct: 8, restan: 8545, hora: 'dom 10:00' }, mensual: null },
+];
+const problemas = base.map((c, i) => i === 1 ? { ...c, aviso: 'límite de consultas (429): reintento más tarde', datoDe: '11:21' }
+  : i === 2 ? { ...c, error: 'No disponible: token caducado; vuelve a iniciar sesión' }
+  : i === 3 ? { ...c, nombre: 'Cuenta 4', email: null, org: '', plan: '', error: 'No disponible: sin sesión iniciada en esta cuenta' } : c);
+
+/* ritmo: transcurrido = 100 - restan/ventana; estimación = consumo / transcurrido */
+function ritmo(v, ventanaMin) {
+  const trans = Math.max(0, Math.min(100, 100 - v.restan / ventanaMin * 100));
+  if (trans < 10) return { trans, est: null, clase: 'nd' };
+  const est = v.pct / trans * 100;
+  const clase = v.pct >= 100 || est > 100 ? 'largo' : est > 85 ? 'justo' : est < 50 ? 'corto' : 'ok';
+  return { trans, est, clase };
+}
+const vent = (lb, v, ventanaMin) => {
+  const r = ritmo(v, ventanaMin);
+  const pj = r.est === null
+    ? `<span class="pj" data-from="new" data-note="Nuevo · estimación" title="Aún sin estimar: lleva menos del 10 % de la ventana">→ —</span>`
+    : `<span class="pj" data-from="new" data-note="Nuevo · estimación" title="${{ corto: 'Sobra cuota', ok: 'Vas bien', justo: 'Vas justo', largo: 'No llegas' }[r.clase]} · estimación lineal: a este ritmo llegarías al reset con ${Math.round(r.est)} %">→ ${Math.min(999, Math.round(r.est))}<i>%</i></span>`;
+  return `<div class="v ${r.clase}"><div class="top"><span class="lb">${lb}</span><span class="pc">${v.pct}<i>%</i></span>${pj}
+    <span class="rs">en ${fmt(v.restan)} · <b>${v.hora}</b></span></div>
+    <div class="pista"><div class="lleno" style="width:${v.pct}%"></div><div class="marca" data-from="1" data-note="Del 01 · tiempo transcurrido" style="left:${r.trans}%" title="Tiempo transcurrido de la ventana: ${Math.round(r.trans)} %"></div></div></div>`;
+};
+function pintar(estado) {
+  const datos = estado === 'ok' ? base : problemas;
+  document.getElementById('cuentas').innerHTML = datos.map(c => {
+    const mens = c.mensual ? `<span class="m">Créditos extra <b>${c.mensual.usado.toFixed(2)} / ${c.mensual.limite.toFixed(2)} ${c.mensual.moneda}</b></span>`
+      : c.error ? '' : '<span class="m">Créditos extra <b>—</b></span>';
+    const l1 = `<div class="l1"><span class="n">${c.nombre}</span><span class="e">${c.email || 'email desconocido'}</span>
+      ${c.aviso ? `<span class="stale" title="${c.aviso}">⚠ dato de ${c.datoDe}</span>` : ''}<span class="sp"></span>
+      ${c.plan ? `<span class="p">${c.plan}</span>` : ''}${mens}</div>`;
+    return `<div class="cuenta">${l1}${c.error ? `<div class="aviso">⚠ ${c.error}</div>` : `<div class="par">${vent('Sesión · 5 h', c.ses, 300)}${vent('Semana', c.sem, 10080)}</div>`}</div>`;
+  }).join('');
+}
+function marcar(id, v) { document.querySelectorAll(`#${id} button`).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v)); }
+function tema(t) { document.documentElement.dataset.theme = t; marcar('seg-tema', t); document.getElementById('b-tema').textContent = t === 'light' ? '☀' : '🌙'; }
+document.querySelectorAll('#seg-tema button').forEach(b => b.onclick = () => tema(b.dataset.v));
+document.getElementById('b-tema').onclick = () => tema(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+document.querySelectorAll('#seg-estado button').forEach(b => b.onclick = () => { marcar('seg-estado', b.dataset.v); pintar(b.dataset.v); });
+document.querySelectorAll('#seg-origen button').forEach(b => b.onclick = () => { marcar('seg-origen', b.dataset.v); document.body.classList.toggle('ver-origen', b.dataset.v === '1'); });
+document.getElementById('b-pin').onclick = e => e.currentTarget.setAttribute('aria-pressed', e.currentTarget.getAttribute('aria-pressed') !== 'true');
+const params = new URLSearchParams(location.search);
+if (params.get('tema')) tema(params.get('tema'));
+const est = params.get('estado') === 'problemas' ? 'problemas' : 'ok';
+marcar('seg-estado', est); pintar(est);
+if (params.get('origen') === '1') { marcar('seg-origen', '1'); document.body.classList.add('ver-origen'); }
+</script>
+</body>
+</html>
