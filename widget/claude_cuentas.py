@@ -204,10 +204,28 @@ class Widget:
             hwnd = u32.GetParent(self.raiz.winfo_id()) or self.raiz.winfo_id()
             estilo = u32.GetWindowLongW(hwnd, EXSTYLE)
             u32.SetWindowLongW(hwnd, EXSTYLE, (estilo & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW)
+            self._iconos_nitidos(u32, hwnd)
             self.raiz.withdraw()
             self.raiz.after(30, self.raiz.deiconify)
         except Exception:  # noqa: BLE001 - sin botón en la barra, pero el widget funciona igual
             pass
+
+    @staticmethod
+    def _iconos_nitidos(u32, hwnd):
+        """Icono de la ventana al tamaño exacto de esta pantalla. `iconbitmap` de Tk solo carga 16 y 32 px y la
+        barra de tareas los estira (24 px al 100 %, 30 al 125 %, 36 al 150 %…), y estirar difumina. Aquí se
+        carga del .ico el fotograma que corresponde a la escala y se asigna a la ventana (WM_SETICON)."""
+        import ctypes
+        u32.LoadImageW.restype = ctypes.c_void_p
+        u32.LoadImageW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+        u32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_void_p]
+        u32.GetDpiForWindow.argtypes = [ctypes.c_void_p]
+        escala = (u32.GetDpiForWindow(hwnd) or 96) / 96
+        for tipo, base in ((1, 24), (0, 16)):  # ICON_BIG (barra de tareas, Alt+Tab) e ICON_SMALL (título)
+            px = round(base * escala)
+            icono = u32.LoadImageW(None, RUTA_ICO, 1, px, px, 0x10)  # IMAGE_ICON, LR_LOADFROMFILE
+            if icono:
+                u32.SendMessageW(hwnd, 0x80, tipo, icono)  # WM_SETICON
 
     # --- estructura -------------------------------------------------------------------------
     @property

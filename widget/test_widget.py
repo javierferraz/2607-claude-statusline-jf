@@ -124,6 +124,20 @@ class ArranqueConWindows(unittest.TestCase):
         self.assertFalse(cc.inicio_activo())          # el repo se movió: hay que volver a marcar
 
 
+class IconoNitido(unittest.TestCase):
+    """Un .ico sin el tamaño que pide la barra de tareas se estira y se ve borroso."""
+
+    def test_un_fotograma_por_escala_de_pantalla(self):
+        import struct
+        datos = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cronos.ico'), 'rb').read()
+        n = struct.unpack('<H', datos[4:6])[0]
+        tamanos = {(datos[6 + 16 * i] or 256) for i in range(n)}
+        # barra de tareas (24 px al 100 %) y escalas de Windows 125 %, 150 %, 175 %, 200 %; título 16 px
+        for pedido in (16, 24, 30, 36, 40, 48, 256):
+            self.assertIn(pedido, tamanos)
+        self.assertEqual(datos[:4], bytes([0, 0, 1, 0]))
+
+
 class Ritmo(unittest.TestCase):
     """Raya de ritmo uniforme y color por tramos: la regla de Roaring Lion (S-772, S-792)."""
     AHORA = datetime(2026, 11, 2, 11, 35)

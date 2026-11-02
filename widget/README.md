@@ -62,6 +62,10 @@ Copia la estética de Roaring Lion (su `DESIGN.md`, paleta «Piedra»); la inter
    Para comprobarlo: `$env:CLAUDE_CONFIG_DIR="$HOME\.claude-cuenta2"; claude auth status; Remove-Item Env:CLAUDE_CONFIG_DIR`
 3. Abre el widget con `lanzar-widget.vbs` (sin consola) o con el acceso directo «Cronos» del escritorio (icono `cronos.ico`: un reloj de arena).
 
+El icono (`cronos.ico`, 14 tamaños de 16 a 256 px) se regenera con `python widget/generar-icono.py` desde
+`cronos-1024.png`: la barra de tareas pide 24 px al 100 %, 30 al 125 %, 36 al 150 %… y sin un fotograma exacto
+Windows estira otro y se ve borroso.
+
 Arrastra la barra de título para moverlo; 📌 activa o desactiva «siempre encima»; ⟳ refresca; ✕ cierra.
 La posición se guarda en `%LOCALAPPDATA%\ClaudeCuentasWidget`.
 
