@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import uso  # noqa: E402
 from formato import (SEMANA_MIN, SESION_MIN, cuenta_atras, dia_hora, etiqueta_plan, nombres_amistosos, ritmo,
-                     se_agota, texto_extra, tramo, texto_reset_semana, texto_reset_sesion)  # noqa: E402
+                     se_agota, tramo, texto_reset_semana, texto_reset_sesion)  # noqa: E402
 
 USO_REAL = {  # forma de la respuesta real de /api/oauth/usage (2026-11-02), recortada
     'five_hour': {'utilization': 10.0, 'resets_at': '2026-11-02T12:20:00.717029+00:00'},
@@ -73,13 +73,55 @@ class Formato(unittest.TestCase):
         # si aun así chocan (mismo id y mismo dominio base), el email completo
         self.assertEqual(nombres_amistosos(['a@x.es', 'a@x.com']), ['a@x.es', 'a@x.com'])
 
-    def test_plan_y_mensual(self):
+    def test_plan(self):
         self.assertEqual(etiqueta_plan('team', 'default_claude_max_5x'), 'Team · Max 5x')
         self.assertEqual(etiqueta_plan('pro', None), 'Pro')
-        self.assertEqual(texto_extra(None), 'Extra credits —')
-        self.assertEqual(texto_extra({'activo': False}), 'Extra credits —')
-        self.assertEqual(texto_extra({'activo': True, 'usado': 3.5, 'limite': 50.0, 'moneda': 'USD'}),
-                         'Extra credits 3.50 / 50.00 USD')
+
+
+class ArranqueConWindows(unittest.TestCase):
+    """La casilla «Start with Windows» lee y escribe el registro de verdad (con otro nombre, y lo limpia)."""
+
+    def setUp(self):
+        import claude_cuentas as cc
+        self.cc = cc
+        self.nombre = cc.RUN_NAME
+        cc.RUN_NAME = 'CronosPruebaUnitaria'
+
+    def tearDown(self):
+        try:
+            self.cc.poner_inicio(False)
+        finally:
+            self.cc.RUN_NAME = self.nombre
+
+    @unittest.skipIf(sys.platform != 'win32', 'solo Windows')
+    def test_marcar_y_desmarcar(self):
+        cc = self.cc
+        self.assertFalse(cc.inicio_activo())
+        cc.poner_inicio(True)
+        self.assertTrue(cc.inicio_activo())
+        self.assertIn('lanzar-widget.vbs', cc.comando_inicio())
+        cc.poner_inicio(False)
+        self.assertFalse(cc.inicio_activo())
+        cc.poner_inicio(False)  # quitarla dos veces no falla
+
+    @unittest.skipIf(sys.platform != 'win32', 'solo Windows')
+    def test_desactivada_desde_el_administrador_de_tareas(self):
+        import winreg
+        cc = self.cc
+        cc.poner_inicio(True)
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, cc.APPROVED_KEY) as k:
+            winreg.SetValueEx(k, cc.RUN_NAME, 0, winreg.REG_BINARY, bytes([3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
+        self.assertFalse(cc.inicio_activo())          # 03 = desactivada: la casilla no miente
+        cc.poner_inicio(True)                         # volver a marcarla la reactiva
+        self.assertTrue(cc.inicio_activo())
+
+    @unittest.skipIf(sys.platform != 'win32', 'solo Windows')
+    def test_ruta_distinta_no_cuenta(self):
+        import winreg
+        cc = self.cc
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, cc.RUN_KEY) as k:
+            winreg.SetValueEx(k, cc.RUN_NAME, 0, winreg.REG_SZ, '"C:/otro/sitio/lanzar-widget.vbs"')
+        self.assertFalse(cc.inicio_activo())          # el repo se movió: hay que volver a marcar
 
 
 class Ritmo(unittest.TestCase):

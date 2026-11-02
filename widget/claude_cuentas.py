@@ -17,9 +17,14 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from formato import (SEMANA_MIN, SESION_MIN, a_fecha, dia_hora, ritmo, se_agota, texto_extra,  # noqa: E402
+from formato import (SEMANA_MIN, SESION_MIN, a_fecha, dia_hora, ritmo, se_agota,  # noqa: E402
                      texto_reset_semana, texto_reset_sesion, tramo)
 from uso import CARPETA_ESTADO, cargar_cuentas, consultar_todas  # noqa: E402
+
+try:
+    import winreg
+except ImportError:  # fuera de Windows no hay arranque con la sesión
+    winreg = None
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 RUTA_CUENTAS = os.path.join(AQUI, 'cuentas.json')
@@ -29,13 +34,62 @@ RUTA_VENTANA = os.path.join(CARPETA_ESTADO, 'ventana.json')
 REFRESCO_MS = 60_000
 TICK_MS = 20_000
 ALTO_FILA = 84
-ANCHO_INTERIOR = 934  # 200 + 236 + 236 + 190 de columnas y 3 × 24 de separación
+ANCHO_INTERIOR = 750  # 230 + 236 + 236 de columnas y 2 × 24 de separación
 FUENTE = 'Segoe UI'
 
 # --- paleta de Roaring Lion (src/styles/base.css y layout.css) ---------------------------------
 ACENTO = '#aee659'
 TRAMOS = {'ok': '#5fae6b', 'warn': '#e3a948', 'danger': '#d75928', 'low': '#6fa8d6'}
 DANGER_CLARO = '#ff9a6e'
+
+
+# --- arranque con la sesión de Windows --------------------------------------------------------------
+RUN_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
+APPROVED_KEY = r'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run'
+RUN_NAME = 'Cronos'
+
+
+def comando_inicio():
+    """Lo que Windows ejecuta al iniciar sesión: el lanzador oculto (sin consola)."""
+    wscript = os.path.join(os.environ.get('WINDIR', 'C:/Windows'), 'System32', 'wscript.exe')
+    return '"%s" "%s"' % (wscript, os.path.join(AQUI, 'lanzar-widget.vbs'))
+
+
+def inicio_activo():
+    """True si Windows lanzará Cronos al iniciar sesión: hay entrada en Run con la ruta de este widget y no
+    está desactivada desde el Administrador de tareas (StartupApproved: primer byte 02 = activo, 03 = no)."""
+    if winreg is None:
+        return False
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
+            valor, _ = winreg.QueryValueEx(k, RUN_NAME)
+    except OSError:
+        return False
+    if os.path.normcase(valor) != os.path.normcase(comando_inicio()):
+        return False  # apunta a otra carpeta (el repo se movió): marcar la casilla lo corrige
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, APPROVED_KEY) as k:
+            datos, _ = winreg.QueryValueEx(k, RUN_NAME)
+        return not (datos and datos[0] % 2)
+    except OSError:
+        return True
+
+
+def poner_inicio(activo):
+    """Crea o quita la entrada de arranque y la marca de «desactivado» del Administrador de tareas."""
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
+        if activo:
+            winreg.SetValueEx(k, RUN_NAME, 0, winreg.REG_SZ, comando_inicio())
+        else:
+            try:
+                winreg.DeleteValue(k, RUN_NAME)
+            except FileNotFoundError:
+                pass
+    try:  # sin esto, una desactivación antigua del Administrador de tareas dejaría la casilla marcada sin efecto
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, APPROVED_KEY, 0, winreg.KEY_SET_VALUE) as k:
+            winreg.DeleteValue(k, RUN_NAME)
+    except OSError:
+        pass
 
 
 def mezcla(a, b, t):
@@ -170,6 +224,7 @@ class Widget:
             self.pintar()
         else:
             tk.Label(self.cuerpo, text='Loading…', fg=C['muted'], bg=C['row_bg'], font=(FUENTE, 10), height=3, width=60).pack()
+            self._pintar_estado()  # la casilla de arranque debe estar aunque aún no haya datos
 
     def _boton(self, b, accion, rojo):
         C = self.C
@@ -269,7 +324,7 @@ class Widget:
         dentro.pack(fill='x', padx=16)
         dentro.pack_propagate(False)
 
-        ident = tk.Frame(dentro, bg=bg, width=200, height=52)
+        ident = tk.Frame(dentro, bg=bg, width=230, height=52)
         ident.pack_propagate(False)
         ident.pack(side='left', padx=(0, 24))
         linea = tk.Frame(ident, bg=bg)
@@ -284,6 +339,9 @@ class Widget:
             aviso = tk.Label(linea, text=' ⚠', fg=C['warn_txt'], bg=bg, font=(FUENTE, 10), cursor='question_arrow')
             aviso.pack(side='left')
             self._ayuda_simple(aviso, self._texto_antiguo(d))
+        tier = (d['plan'] or '').split(' · ')[-1]  # «Team · Max 5x» -> «Max 5x»: lo único que interesa del plan
+        if tier:
+            tk.Label(linea, text='  ' + tier, fg=C['muted'], bg=bg, font=(FUENTE, 8)).pack(side='left')
         tk.Label(ident, text=d['email'] or 'email unknown', fg=C['muted'], bg=bg, font=(FUENTE, 9), anchor='w').pack(anchor='w', pady=(6, 0))
 
         if not con_datos:
@@ -297,11 +355,6 @@ class Widget:
         else:
             self._bloque(dentro, bg, 'Session', d['sesion'], SESION_MIN, f'{i}-ses', d, ahora)
             self._bloque(dentro, bg, 'Week', d['semana'], SEMANA_MIN, f'{i}-sem', d, ahora)
-            plan = tk.Frame(dentro, bg=bg, height=52)
-            plan.pack_propagate(False)
-            plan.pack(side='left', fill='x', expand=True)
-            tk.Label(plan, text=d['plan'] or '—', fg=C['ink'], bg=bg, font=(FUENTE, 10, 'bold'), anchor='w').pack(anchor='w')
-            tk.Label(plan, text=texto_extra(d['mensual']), fg=C['muted'], bg=bg, font=(FUENTE, 9), anchor='w').pack(anchor='w', pady=(6, 0))
 
         self._ligar_hover(fila)
 
@@ -349,13 +402,22 @@ class Widget:
         def etiqueta(texto, color=None, negrita=False, lado='left', padx=(0, 12)):
             tk.Label(self.estado, text=texto, fg=color or C['chrome_muted'], bg=C['chrome2'],
                      font=(FUENTE, 8, 'bold' if negrita else 'normal')).pack(side=lado, padx=padx)
-        etiqueta(f'{len(self.datos)} accounts', C['chrome_ink'], True, padx=(12, 12))
-        etiqueta(f'{con} with data')
-        if self.tramos['danger']:
-            etiqueta(f"{self.tramos['danger']} over pace", DANGER_CLARO)
-        if antiguos:
-            etiqueta(f'{antiguos} stale', TRAMOS['warn'])
-        etiqueta(f'refreshes every {REFRESCO_MS // 1000} s', lado='right', padx=(0, 12))
+        if self.datos:
+            etiqueta(f'{len(self.datos)} accounts', C['chrome_ink'], True, padx=(12, 12))
+            etiqueta(f'{con} with data')
+            if self.tramos['danger']:
+                etiqueta(f"{self.tramos['danger']} over pace", DANGER_CLARO)
+            if antiguos:
+                etiqueta(f'{antiguos} stale', TRAMOS['warn'])
+        if winreg is not None:
+            activo = inicio_activo()
+            casilla = tk.Label(self.estado, text=('☑' if activo else '☐') + ' Start with Windows',
+                               fg=C['chrome_ink'] if activo else C['chrome_muted'], bg=C['chrome2'],
+                               font=(FUENTE, 8), cursor='hand2')
+            casilla.pack(side='right', padx=(0, 12))
+            casilla.bind('<Button-1>', lambda _e: self.alternar_inicio())
+            self._ayuda_simple(casilla, 'Launch Cronos when you sign in to Windows. It can also be turned off '
+                                        'in Task Manager › Startup apps; this box shows the real state.')
         etiqueta('┃ even pace', lado='right')
         for nombre, clave in (('over', 'danger'), ('ahead', 'warn'), ('on pace', 'ok'), ('spare', 'low')):
             etiqueta(f'● {nombre}', TRAMOS[clave], lado='right', padx=(0, 10))
@@ -524,6 +586,13 @@ class Widget:
         self.tema = 'claro' if self.tema == 'oscuro' else 'oscuro'
         self._montar()
         self._guardar_ventana()
+
+    def alternar_inicio(self):
+        try:
+            poner_inicio(not inicio_activo())
+        except OSError as e:
+            self.lbl_hora.config(text=f'startup error: {e}', fg=TRAMOS['warn'])
+        self._pintar_estado()
 
     def alternar_encima(self):
         self.encima.set(not self.encima.get())

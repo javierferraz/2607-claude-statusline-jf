@@ -109,16 +109,6 @@ def dia_hora(d):
     return f'{DIAS_CORTOS[d.weekday()]} {d:%H:%M}'
 
 
-def texto_extra(mensual):
-    """Créditos extra del mes (único dato mensual que da la API), para la columna del plan."""
-    if not mensual or not mensual.get('activo') or mensual.get('usado') is None:
-        return 'Extra credits —'
-    usado, limite, moneda = mensual['usado'], mensual.get('limite'), mensual.get('moneda') or ''
-    if limite:
-        return f'Extra credits {usado:.2f} / {limite:.2f} {moneda}'.strip()
-    return f'Extra credits {usado:.2f} {moneda}'.strip()
-
-
 def ritmo(resets_at, span_min, ahora=None):
     """«Ritmo uniforme»: parte de la ventana ya gastada, en %. Es la raya blanca de Roaring Lion
     (S-772): llegar al 100 % justo en el reset es gastar lo mismo cada hora (o cada día).

@@ -1,8 +1,8 @@
 # Cronos · widget de escritorio con el consumo de varias cuentas de Claude
 
 Ventana pequeña para el escritorio (Python + tkinter, sin dependencias; solo la opción `--captura` usa Pillow) con, por cada cuenta:
-nombre y email, plan, **sesión de 5 h** y **semana** (% con barra y hora de reset) y los **créditos extra**
-del mes si la cuenta los tiene activos. Es independiente de la extensión de VS Code de este repo y usa la
+nombre y email, el nivel **Max** del plan (discreto, junto al nombre), **sesión de 5 h** y **semana**
+(% con barra y hora de reset). Es independiente de la extensión de VS Code de este repo y usa la
 misma fuente de datos (`src/dataSource.ts`).
 
 ## Aspecto
@@ -19,6 +19,10 @@ Copia la estética de Roaring Lion (su `DESIGN.md`, paleta «Piedra»); la inter
   fila lima original como registro.)
 - Pasa el ratón por una sesión o semana: panel con la explicación, el veredicto y las barras «Used» y
   «Even pace». ⚠ junto al nombre = datos antiguos (el motivo, al pasar el ratón).
+- **Casilla «Start with Windows»** (barra de estado): lanza Cronos al iniciar sesión, sin consola. Escribe la
+  entrada `Cronos` en `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (el lanzador `lanzar-widget.vbs`).
+  El check refleja el estado real: si lo apagas en el Administrador de tareas › Inicio, o mueves la carpeta del
+  repo, vuelve a salir sin marcar. Por defecto está sin marcar.
 - Prototipos y capturas de la elección: `design-exploration/` (rama `experiment/ui-redesign`).
 
 ## Cómo funciona
@@ -62,7 +66,7 @@ python widget/claude_cuentas.py --captura captura.png
 
 ## Límites conocidos
 
-- La API no da un consumo mensual del plan; solo los créditos extra («Extra credits»).
+- La API no da un consumo mensual del plan, y los créditos extra (que sí da) ya no se muestran.
 - El color por ritmo es una proyección lineal: al principio de una ventana exagera. Los cortes (5 / 15 / 25
   puntos) son los de Lion y la propuesta de Cronos.
 - Las esquinas redondeadas dependen de Windows 11 (en Windows 10 se ve recta).
