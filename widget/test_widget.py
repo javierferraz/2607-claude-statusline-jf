@@ -8,7 +8,7 @@ import sys
 import tempfile
 import time
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -204,37 +204,57 @@ class Cuentas(unittest.TestCase):
         self.assertEqual(r['estado'], 'token_caducado')
         self.assertIsNone(r['sesion'])
 
+    def renovando_con(self, fn):
+        """Sustituye al Claude Code oficial por `fn(carpeta)` durante la prueba."""
+        orig = uso._ejecutar_claude
+        uso._ejecutar_claude = fn
+        self.addCleanup(setattr, uso, '_ejecutar_claude', orig)
+
     def test_renovacion_fallida(self):
-        """CA3: si la renovación falla, la cuenta sale caducada y el fichero queda igual."""
+        """CA3: si Claude Code dice que el login se perdió, la cuenta sale caducada y el fichero queda igual."""
         d = crear_carpeta(self.base, 'd', 'tok-d', 'd@x.es', caduca_en_s=-60)
         antes = leer(os.path.join(d, '.credentials.json'))
 
-        def http(url, token=None, cuerpo=None):
-            raise uso.ErrorHttp(400)
-        r = uso.consultar_cuenta({'alias': 'D', 'dir': d, 'renovar': True}, {}, http)
+        def perdido(carpeta):
+            raise uso.LoginPerdido('Please run /login')
+        self.renovando_con(perdido)
+        r = uso.consultar_cuenta({'alias': 'D', 'dir': d, 'renovar': True}, {}, lambda *a, **k: self.fail('sin token no hay API'))
         self.assertEqual(r['estado'], 'token_caducado')
+        self.assertIn('sign in again', r['error'])
         self.assertIsNone(r['sesion'])
         self.assertEqual(leer(os.path.join(d, '.credentials.json')), antes)
 
-    def test_renovacion_correcta_guarda_token(self):
+    def test_renovacion_correcta_usa_el_token_nuevo(self):
+        """Cronos no habla con el servidor de renovación: lanza Claude Code, que guarda el token, y lo relee."""
         d = crear_carpeta(self.base, 'e', 'tok-viejo', 'e@x.es', caduca_en_s=-60)
-        llamadas = []
+        lanzado = []
+
+        def claude(carpeta):
+            lanzado.append(carpeta)
+            ruta = os.path.join(carpeta, '.credentials.json')
+            c = json.loads(leer(ruta))
+            c['claudeAiOauth'].update(accessToken='tok-nuevo', refreshToken='r-nuevo', expiresAt=int((time.time() + 28800) * 1000))
+            with open(ruta, 'w', encoding='utf-8') as f:
+                json.dump(c, f)
+        self.renovando_con(claude)
+        tokens = []
 
         def http(url, token=None, cuerpo=None):
-            llamadas.append((url, token, cuerpo))
-            if url == uso.URL_TOKEN:
-                return {'access_token': 'tok-nuevo', 'refresh_token': 'r-nuevo', 'expires_in': 28800}
+            tokens.append(token)
             if url == uso.URL_PERFIL:
                 return {'account': {'email': 'e@x.es'}, 'organization': {'name': 'Org'}}
             return USO_REAL
         r = uso.consultar_cuenta({'alias': 'E', 'dir': d, 'renovar': True}, {}, http)
         self.assertEqual(r['estado'], 'ok')
-        self.assertEqual(llamadas[0][2]['grant_type'], 'refresh_token')
-        self.assertEqual(llamadas[0][2]['refresh_token'], 'r-tok-viejo')
-        self.assertEqual(llamadas[1][1], 'tok-nuevo')
-        oauth = json.loads(leer(os.path.join(d, '.credentials.json')))['claudeAiOauth']
-        self.assertEqual((oauth['accessToken'], oauth['refreshToken']), ('tok-nuevo', 'r-nuevo'))
-        self.assertEqual(oauth['subscriptionType'], 'team')  # conserva el resto de campos
+        self.assertEqual(lanzado, [d])
+        self.assertEqual(set(tokens), {'tok-nuevo'})
+
+    def test_claude_no_renovo(self):
+        """Si Claude Code termina pero el token no avanzó, es un fallo (no se da por buena la cuenta)."""
+        d = crear_carpeta(self.base, 'k2', 'tok-k', 'k@x.es', caduca_en_s=-60)
+        self.renovando_con(lambda carpeta: None)
+        with self.assertRaises(ValueError):
+            uso.renovar_token(os.path.join(d, '.credentials.json'))
 
     def test_429_usa_cache_y_espera(self):
         d = crear_carpeta(self.base, 'f', 'tok-f', 'f@x.es')
@@ -265,14 +285,14 @@ class Cuentas(unittest.TestCase):
 
 
     def test_renovacion_fallo_pasajero_sin_caducar(self):
-        """Un fallo de red al renovar con el token aún válido no marca la cuenta como caducada."""
+        """Un fallo al renovar con el token aún válido no marca la cuenta como caducada, y espera para reintentar."""
         d = crear_carpeta(self.base, 'h', 'tok-h', 'h@x.es', caduca_en_s=120)
         cache = {}
 
-        def http(url, token=None, cuerpo=None):
-            if url == uso.URL_TOKEN:
-                raise OSError('sin red')
-            return USO_REAL if url == uso.URL_USO else {}
+        def sin_red(carpeta):
+            raise OSError('sin red')
+        self.renovando_con(sin_red)
+        http = lambda url, token=None, cuerpo=None: USO_REAL if url == uso.URL_USO else {}  # noqa: E731
         r = uso.consultar_cuenta({'alias': 'H', 'dir': d, 'renovar': True}, cache, http)
         self.assertEqual(r['estado'], 'ok')
         self.assertEqual(r['sesion']['pct'], 10)
@@ -385,3 +405,77 @@ class Cuentas(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PintadoEnSuSitio(unittest.TestCase):
+    """Anti-parpadeo: con la misma estructura solo se actualizan textos y barras; no se recrean elementos."""
+
+    def setUp(self):
+        import copy
+        import claude_cuentas as cc
+        self.cc, self.copy = cc, copy
+        iso = lambda m: (datetime.now(timezone.utc) + timedelta(minutes=m)).isoformat()  # noqa: E731
+        self.iso = iso
+        self.datos = [dict(alias=n, nombre=n, dir='x', esta=False, email=n + '@x.es', org='', plan='Pro',
+                           sesion=dict(pct=p, reset=iso(120)), semana=dict(pct=p, reset=iso(6000)), mensual=None,
+                           estado='ok', error=None, dato_de=None) for n, p in (('Uno', 20), ('Dos', 60))]
+        self.orig = cc.consultar_todas
+        cc.consultar_todas = lambda cuentas, forzar=False: copy.deepcopy(self.datos)
+        try:
+            self.w = cc.Widget(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cuentas.example.json'), 'x.png', 'oscuro')
+        except Exception as e:  # sin pantalla (CI): no hay nada que probar
+            cc.consultar_todas = self.orig
+            self.skipTest(f'sin Tk: {e}')
+        self.w._preparar_captura = lambda: None
+        t0 = time.time()
+        while not self.w.datos and time.time() - t0 < 20:
+            self.w.raiz.update()
+            time.sleep(0.05)
+        self.w.raiz.update()
+
+    def tearDown(self):
+        self.cc.consultar_todas = self.orig
+        for pendiente in self.w.raiz.tk.call('after', 'info'):
+            self.w.raiz.after_cancel(pendiente)  # sin avisos de «invalid command name» al cerrar
+        self.w.raiz.destroy()
+
+    def envia(self):
+        self.w.cola.put(self.copy.deepcopy(self.datos))
+        self.w.ocupado = True
+        self.w._mirar_cola()
+        self.w.raiz.update()
+
+    def test_mismos_elementos(self):
+        w = self.w
+        cuerpo, estado = w.cuerpo, w.estado
+        etiquetas = [x for x in cuerpo.winfo_children()[0].winfo_children()]
+        w.pintar()
+        w._tick()
+        self.envia()
+        self.assertIs(w.cuerpo, cuerpo)
+        self.assertIs(w.estado, estado)
+        self.datos[1]['sesion']['pct'] = 61           # cambia una cifra: se actualiza en su sitio
+        self.envia()
+        self.assertIs(w.cuerpo, cuerpo)
+        self.assertIs(w.estado, estado)
+        self.assertEqual(etiquetas, [x for x in cuerpo.winfo_children()[0].winfo_children()])
+        textos = [x.cget('text') for f in w.cuerpo.winfo_children() for x in self._todos(f) if x.winfo_class() == 'Label']
+        self.assertIn('61%', textos)
+
+    def test_cambio_de_estructura_reconstruye(self):
+        w = self.w
+        cuerpo = w.cuerpo
+        self.datos[1]['error'] = 'rate limited'
+        self.datos[1]['dato_de'] = time.time()        # aparece el aviso de datos antiguos
+        self.envia()
+        self.assertIsNot(w.cuerpo, cuerpo)
+        cuerpo = w.cuerpo
+        w.alternar_tema()
+        w.raiz.update()
+        self.assertIsNot(w.cuerpo, cuerpo)
+        self.assertEqual(len(w.marco.winfo_children()), 3)  # título, cuerpo y estado: sin elementos viejos apilados
+
+    def _todos(self, w):
+        yield w
+        for h in w.winfo_children():
+            yield from self._todos(h)

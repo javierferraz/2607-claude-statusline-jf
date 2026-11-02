@@ -132,6 +132,10 @@ class Barra(tk.Canvas):
         self.create_rectangle(r, 0, x1 - r, self.alto, fill=color, width=0)
 
     def poner(self, pct, color, pista, raya=None, color_raya=None):
+        ultimo = (pct, color, pista, raya, color_raya)
+        if ultimo == getattr(self, '_ultimo', None):
+            return
+        self._ultimo = ultimo
         self.delete('all')
         self._capsula(self.ancho, pista)
         if pct is not None and pct > 0:
@@ -148,7 +152,9 @@ class Widget:
         self.tip_win = self.tip_id = self.tip_cierre = None
         self.bloques = {}
         self.tramos = {'ok': 0, 'low': 0, 'warn': 0, 'danger': 0}
-        self._firma = None  # lo último que se pintó: si no cambia, no se repinta (evita el parpadeo)
+        self._estructura = None   # qué elementos hay en pantalla: si es la misma, solo se actualizan sus textos
+        self._firma_estado = None
+        self.actualizadores = []  # (id del bloque, función que actualiza su texto y su barra en su sitio)
 
         pos = self._leer_ventana()
         self.tema = tema or (pos.get('tema') if pos.get('tema') in TEMAS else 'oscuro')
@@ -184,7 +190,7 @@ class Widget:
         """Barra de título, cuerpo y barra de estado. Se rehace entera al cambiar de tema."""
         C = self.C
         self.ocultar_tip()
-        self._firma = None
+        self._estructura = self._firma_estado = None
         for w in self.marco.winfo_children():
             w.destroy()
         self.marco.config(bg=C['chrome'], highlightbackground=C['chrome_line'], highlightcolor=C['chrome_line'])
@@ -293,17 +299,31 @@ class Widget:
             self.raiz.after(TICK_MS, self._tick)
 
     # --- pintado ----------------------------------------------------------------------------
+    @staticmethod
+    def _forma(d):
+        """Lo que decide qué elementos se crean para una cuenta (no sus cifras): si no cambia, no se reconstruye."""
+        con_datos = d['estado'] == 'ok' and bool(d['sesion'] or d['semana'])
+        return (d['nombre'], d['email'], bool(d.get('esta')), (d['plan'] or '').split(' · ')[-1], con_datos,
+                d['error'], d['dato_de'], d['sesion'] is None, d['semana'] is None)
+
     def pintar(self):
         C = self.C
         ahora = datetime.now()
-        # Los datos y el minuto (las cuentas atrás cambian por minutos) definen lo que se ve: si es lo mismo
-        # que la última vez no se toca nada, y con el panel emergente abierto tampoco se cierra.
-        firma = (self.tema, json.dumps(self.datos, sort_keys=True, default=str), ahora.strftime('%Y%m%d%H%M'))
-        if firma == self._firma:
+        estructura = (self.tema, tuple(self._forma(d) for d in self.datos))
+        if estructura == self._estructura:
+            # Mismos elementos: solo cambian cifras, barras y cuentas atrás. Se actualizan en su sitio, sin crear
+            # ni destruir nada (reconstruir ~60 elementos de Windows cada minuto se notaba como un parpadeo), y
+            # el panel emergente abierto no se cierra.
+            self.tramos = {'ok': 0, 'low': 0, 'warn': 0, 'danger': 0}
+            for id_, actualizar in self.actualizadores:
+                n, clave = id_.split('-')
+                d = self.datos[int(n)]
+                actualizar(d['sesion' if clave == 'ses' else 'semana'], d, ahora)
+            self._pintar_estado()
             return
-        self._firma = firma
+        self._estructura = estructura
         self.ocultar_tip()
-        self.bloques = {}
+        self.bloques, self.actualizadores = {}, []
         viejo = self.cuerpo
         self.cuerpo = tk.Frame(self.marco, bg=C['row_bg'])  # se monta aparte y se cambia de golpe, sin ventana vacía
         self.tramos = {'ok': 0, 'low': 0, 'warn': 0, 'danger': 0}
@@ -370,34 +390,48 @@ class Widget:
             tk.Label(arriba, text='—', fg=C['ink'], bg=bg, font=(FUENTE, 14, 'bold')).pack(side='left', padx=8)
             tk.Label(f, text='not available', fg=C['muted'], bg=bg, font=(FUENTE, 9), anchor='w').pack(anchor='w', pady=(6, 0))
             return
-        pct = v['pct']
-        raya = ritmo(v['reset'], span, ahora)
-        nivel = tramo(pct, raya)
-        self.tramos[nivel] += 1
-        agota = se_agota(pct, v['reset'], span, ahora)
-        limite = pct >= 100
-        tk.Label(arriba, text=f'{pct}%', fg=TRAMOS['danger'] if limite else C['ink'], bg=bg, font=(FUENTE, 14, 'bold'),
-                 width=4, anchor='w').pack(side='left', padx=(4, 4))
+        lbl_pct = tk.Label(arriba, text='', bg=bg, font=(FUENTE, 14, 'bold'), width=4, anchor='w')
+        lbl_pct.pack(side='left', padx=(4, 4))
         barra = Barra(arriba, bg)
         barra.pack(side='left', pady=(5, 0))
-        barra.poner(pct, TRAMOS[nivel], C['track'], raya, C['tick'])
-        if agota:
-            sub, color = f'at this pace, out {dia_hora(agota)}', TRAMOS['danger']
-        else:
-            texto = texto_reset_sesion if span == SESION_MIN else texto_reset_semana
-            sub, color = texto(v['reset'], ahora) or ('no active window' if pct == 0 else 'no reset time'), TRAMOS['danger'] if limite else C['muted']
-        tk.Label(f, text=sub, fg=color, bg=bg, font=(FUENTE, 9), anchor='w').pack(anchor='w', pady=(6, 0))
-        self.bloques[id_] = (f, dict(pct=pct, span=span, raya=raya, nivel=nivel, agota=agota, v=v, antiguo=d, ahora=ahora))
+        lbl_sub = tk.Label(f, text='', bg=bg, font=(FUENTE, 9), anchor='w')
+        lbl_sub.pack(anchor='w', pady=(6, 0))
+
+        def actualizar(v, d, ahora):
+            pct = v['pct']
+            raya = ritmo(v['reset'], span, ahora)
+            nivel = tramo(pct, raya)
+            self.tramos[nivel] += 1
+            agota = se_agota(pct, v['reset'], span, ahora)
+            limite = pct >= 100
+            lbl_pct.config(text=f'{pct}%', fg=TRAMOS['danger'] if limite else C['ink'])
+            barra.poner(pct, TRAMOS[nivel], C['track'], raya, C['tick'])
+            if agota:
+                sub, color = f'at this pace, out {dia_hora(agota)}', TRAMOS['danger']
+            else:
+                texto = texto_reset_sesion if span == SESION_MIN else texto_reset_semana
+                sub = texto(v['reset'], ahora) or ('no active window' if pct == 0 else 'no reset time')
+                color = TRAMOS['danger'] if limite else C['muted']
+            if lbl_sub.cget('text') != sub or lbl_sub.cget('fg') != color:
+                lbl_sub.config(text=sub, fg=color)
+            self.bloques[id_] = (f, dict(pct=pct, span=span, raya=raya, nivel=nivel, agota=agota, v=v, antiguo=d, ahora=ahora))
+        actualizar(v, d, ahora)
+        self.actualizadores.append((id_, actualizar))
         self._ligar_tip(f, id_)
 
     def _pintar_estado(self):
         C = self.C
-        viejo = self.estado
-        self.estado = tk.Frame(self.marco, bg=C['chrome2'], height=24)  # igual: se monta aparte y se cambia de golpe
-        self.estado.pack_propagate(False)
-        self.estado.pack(fill='x')
         con = sum(1 for d in self.datos if d['estado'] == 'ok' and (d['sesion'] or d['semana']))
         antiguos = sum(1 for d in self.datos if d['estado'] == 'ok' and (d['sesion'] or d['semana']) and d['error'])
+        activo = inicio_activo() if winreg is not None else False
+        firma = (self.tema, len(self.datos), con, antiguos, self.tramos['danger'], activo)
+        if firma == self._firma_estado:
+            return
+        self._firma_estado = firma
+        viejo = self.estado
+        self.estado = tk.Frame(self.marco, bg=C['chrome2'], height=24)  # se monta aparte y se cambia de golpe
+        self.estado.pack_propagate(False)
+        self.estado.pack(fill='x')
 
         def etiqueta(texto, color=None, negrita=False, lado='left', padx=(0, 12)):
             tk.Label(self.estado, text=texto, fg=color or C['chrome_muted'], bg=C['chrome2'],
@@ -410,7 +444,6 @@ class Widget:
             if antiguos:
                 etiqueta(f'{antiguos} stale', TRAMOS['warn'])
         if winreg is not None:
-            activo = inicio_activo()
             casilla = tk.Label(self.estado, text=('☑' if activo else '☐') + ' Start with Windows',
                                fg=C['chrome_ink'] if activo else C['chrome_muted'], bg=C['chrome2'],
                                font=(FUENTE, 8), cursor='hand2')

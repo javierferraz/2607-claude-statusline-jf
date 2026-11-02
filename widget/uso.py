@@ -6,6 +6,8 @@ por separado: un fallo en una no afecta a las demás ni se mezcla con sus datos.
 """
 import json
 import os
+import shutil
+import subprocess
 import tempfile
 import time
 import urllib.error
@@ -15,9 +17,6 @@ from formato import a_fecha, etiqueta_plan, nombres_amistosos
 
 URL_USO = 'https://api.anthropic.com/api/oauth/usage'
 URL_PERFIL = 'https://api.anthropic.com/api/oauth/profile'
-# Sacados del binario de Claude Code (no documentados): los mismos que usa para renovar su token.
-URL_TOKEN = 'https://platform.claude.com/v1/oauth/token'
-CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
 CABECERAS = {'anthropic-beta': 'oauth-2025-04-20', 'Content-Type': 'application/json'}
 
 CACHE_USO_S = 60
@@ -104,28 +103,45 @@ def _objeto(v):
     return v if isinstance(v, dict) else {}
 
 
-def renovar_token(ruta_cred, http=_http):
-    """Renueva el token de una carpeta propia del widget. Devuelve el bloque claudeAiOauth nuevo."""
-    creds = _objeto(_leer_json(ruta_cred))  # se relee justo antes por si otro proceso lo cambió
-    oauth = _objeto(creds.get('claudeAiOauth'))
-    if not oauth.get('refreshToken'):
-        raise ValueError('sin refreshToken')
-    r = http(URL_TOKEN, cuerpo={
-        'grant_type': 'refresh_token',
-        'refresh_token': oauth['refreshToken'],
-        'client_id': CLIENT_ID,
-        'scope': ' '.join(oauth.get('scopes') or []),
-    })
-    if not r.get('access_token'):
-        raise ValueError('respuesta sin access_token')
-    oauth['accessToken'] = r['access_token']
-    oauth['refreshToken'] = r.get('refresh_token') or oauth['refreshToken']
-    if r.get('expires_in') is not None:
-        oauth['expiresAt'] = int((time.time() + float(r['expires_in'])) * 1000)
-    creds['claudeAiOauth'] = oauth
-    # El servidor ya ha invalidado el refresh_token anterior: perder esta escritura obliga a
-    # volver a iniciar sesión, así que se reintenta si el fichero está bloqueado.
-    _escribir_json_atomico(ruta_cred, creds, intentos=10)
+class LoginPerdido(Exception):
+    """Claude Code dice que la cuenta ya no tiene sesión: hay que volver a iniciarla."""
+
+
+def _claude_exe():
+    candidatos = [os.path.join(os.environ.get('APPDATA', ''), 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe'),
+                  shutil.which('claude.exe') or '']
+    return next((c for c in candidatos if c and os.path.isfile(c)), None)
+
+
+def _ejecutar_claude(carpeta):
+    """Una llamada mínima del Claude Code oficial sobre la carpeta de la cuenta (haiku, sin herramientas, sin
+    guardar sesión: unos 0,003 USD). Es él quien renueva y guarda el token; Cronos no habla con el servidor
+    de renovación (no es público y rechaza a los clientes que no son Claude Code)."""
+    exe = _claude_exe()
+    if not exe:
+        raise FileNotFoundError('claude.exe not found')
+    env = {k: v for k, v in os.environ.items() if not k.upper().startswith('CLAUDE')}
+    env['CLAUDE_CONFIG_DIR'] = carpeta
+    with tempfile.TemporaryDirectory() as trabajo:
+        r = subprocess.run([exe, '-p', 'Reply with exactly: ok', '--model', 'haiku', '--no-session-persistence',
+                            '--tools', '', '--output-format', 'json'],
+                           env=env, cwd=trabajo, capture_output=True, text=True, timeout=180,
+                           creationflags=0x08000000 if os.name == 'nt' else 0)  # sin ventana de consola
+    if r.returncode != 0:
+        salida = (r.stdout + r.stderr).strip()
+        if 'login' in salida.lower():
+            raise LoginPerdido(salida[:120])
+        raise RuntimeError(f'claude exited with {r.returncode}: {salida[:120]}')
+
+
+def renovar_token(ruta_cred):
+    """Renueva el token de una carpeta propia de Cronos con el Claude Code oficial. Devuelve el bloque
+    claudeAiOauth nuevo; falla si el token no avanzó."""
+    antes = float(_objeto(_objeto(_leer_json(ruta_cred)).get('claudeAiOauth')).get('expiresAt') or 0)
+    _ejecutar_claude(os.path.dirname(ruta_cred))
+    oauth = _objeto(_objeto(_leer_json(ruta_cred)).get('claudeAiOauth'))
+    if not oauth.get('accessToken') or float(oauth.get('expiresAt') or 0) <= antes:
+        raise ValueError('Claude Code did not renew the token')
     return oauth
 
 
@@ -209,15 +225,14 @@ def consultar_cuenta(cuenta, cache, http=_http, ahora=None, forzar=False):
     if caduca and caduca - ahora < MARGEN_CADUCIDAD_S:
         if cuenta.get('renovar') and ahora >= c.get('renovar_espera_hasta', 0):
             try:
-                oauth = renovar_token(ruta_cred, http)
+                oauth = renovar_token(ruta_cred)
                 renovado = True
-                # Sin expires_in en la respuesta no se sabe cuándo caduca: no se reintenta en cada ciclo.
                 nuevo = float(oauth.get('expiresAt') or 0) / 1000
                 c['renovar_espera_hasta'] = 0 if nuevo - ahora >= MARGEN_CADUCIDAD_S else ahora + ESPERA_RENOVAR_S
             except Exception as e:  # noqa: BLE001
                 c['renovar_espera_hasta'] = ahora + ESPERA_RENOVAR_S
-                if isinstance(e, ErrorHttp) and e.status in (400, 401):
-                    res['estado'], res['error'] = 'token_caducado', f'could not renew the token ({e}); sign in again'
+                if isinstance(e, LoginPerdido):
+                    res['estado'], res['error'] = 'token_caducado', 'the login was lost; sign in again'
                 elif caduca <= ahora:
                     res['estado'], res['error'] = 'token_caducado', f'could not renew the token ({e}); will retry'
         if res['estado'] == 'ok' and not renovado and caduca <= ahora:

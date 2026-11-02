@@ -34,10 +34,14 @@ Copia la estética de Roaring Lion (su `DESIGN.md`, paleta «Piedra»); la inter
   cuando haces otro login (también desde «Switch account» de Lion): si una cuenta vive ahí, desaparece al
   cambiar. Por eso cada cuenta tiene su carpeta (`~/.claude-cuenta1`…) y `~/.claude` va al final como «This PC».
   Si una cuenta está en dos carpetas, sale una sola vez, con los datos de la que los tiene y con el punto lima.
-- Las cuentas con `"renovar": true` renuevan su token cuando caduca (mismo método que Claude Code,
-  no documentado). La cuenta de `~/.claude` va con `false`: la renueva Claude Code al usarla.
-- En las carpetas con `"renovar": true` no uses a la vez Claude Code: si los dos renuevan el token al mismo
-  tiempo, uno se queda con un token inválido y hay que volver a iniciar sesión. Por lo mismo, solo se abre
+- **No tienes que volver a iniciar sesión.** El acceso de cada cuenta caduca a las ~8 h, pero el login dura unas
+  4 semanas y se alarga con cada renovación (medido: ~29,7 días tras renovar). Las cuentas con `"renovar": true`
+  se renuevan solas: poco antes de caducar, Cronos lanza el **Claude Code oficial** sobre la carpeta de la cuenta
+  con una llamada mínima (modelo haiku, sin herramientas, ≈0,003 USD) y es él quien renueva y guarda el token.
+  Cronos no llama al servidor de renovación (no es público y rechaza a quien no sea Claude Code). Hace falta que
+  Cronos esté abierto al menos una vez cada pocas semanas. `~/.claude` va con `false`: la renueva Claude Code
+  al usarla.
+- En las carpetas con `"renovar": true` no uses Claude Code a mano mientras Cronos está abierto. Solo se abre
   un widget a la vez.
 - El nombre de cada cuenta sale de su email: la parte anterior a la @ en PROPER (`ventas@funidelia.es`
   → **Ventas**). Si dos cuentas comparten esa parte, se añade el dominio sin la terminación
@@ -74,5 +78,8 @@ python widget/claude_cuentas.py --captura captura.png
 - El color por ritmo es una proyección lineal: al principio de una ventana exagera. Los cortes (5 / 15 / 25
   puntos) son los de Lion y la propuesta de Cronos.
 - Las esquinas redondeadas dependen de Windows 11 (en Windows 10 se ve recta).
-- Los servicios de uso y de renovación no son públicos: si Anthropic los cambia, las cuentas salen
-  como «no disponible».
+- El servicio de uso no es público: si Anthropic lo cambia, las cuentas salen como «no disponible». La
+  renovación depende de que `claude.exe` esté en `%APPDATA%
+pm
+ode_modules\@anthropic-ai\claude-codein\`
+  (o en el PATH).
