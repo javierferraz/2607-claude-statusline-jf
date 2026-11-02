@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cronos · prototipo 01 Professional Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Prototipo 01 · Professional Studio (DaVinci Resolve / software profesional de producción).
+   Sistema: la jerarquía la marcan el peso y el mono, no el color. El acento (ámbar de la arena del
+   icono) solo aparece en: barras de consumo (progreso), foco de teclado y logo. Rojo = consumo >= 80 %.
+   Aviso (dato antiguo / no disponible) = ámbar suave con borde, nunca el acento. Verde no se usa:
+   en Cronos no hay estado «hecho». Paneles integrados con filetes de 1 px; sin sombras ni tarjetas. */
+:root, [data-theme="light"] {
+  --bg-0: #e6e6ea; --bg-1: #f5f5f6; --bg-2: #ebebee; --bg-3: #dcdce1;
+  --line: #d4d4da; --line-strong: #bfbfc7; --line-soft: #e4e4e8;
+  --text: #2b2b31; --text-hi: #111114; --muted: #60606a; --faint: #8d8d97;
+  --accent: #b5741a; --accent-dim: rgba(181,116,26,.13);
+  --danger: #c0392b; --warn: #8a5a00; --warn-bg: #fbf1dc; --warn-line: #e3c98c;
+  --bg-input: #ffffff; --track: #d9d9df;
+}
+[data-theme="dark"] {
+  --bg-0: #121214; --bg-1: #1a1a1d; --bg-2: #222226; --bg-3: #2b2b30;
+  --line: #2e2e33; --line-strong: #3a3a40; --line-soft: #242428;
+  --text: #d9d9de; --text-hi: #f2f2f4; --muted: #8d8d96; --faint: #5f5f68;
+  --accent: #e0a043; --accent-dim: rgba(224,160,67,.14);
+  --danger: #e5604f; --warn: #e6b45a; --warn-bg: #2b2418; --warn-line: #5a4721;
+  --bg-input: #121214; --track: #2b2b30;
+}
+:root {
+  --radius: 2px;
+  --ui: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --data: "IBM Plex Sans Condensed", "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 12.5px/1.4 var(--ui); background: var(--bg-0); color: var(--text); min-height: 100vh; }
+
+/* barra de la página de prototipo (no es parte de la app) */
+.demo { display: flex; gap: 18px; align-items: center; padding: 10px 16px; font: 12px var(--ui); color: var(--muted); border-bottom: 1px solid var(--line); background: var(--bg-1); }
+.demo b { color: var(--text-hi); font-weight: 600; }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; }
+.seg button { font: 500 12px var(--data); padding: 4px 12px; border: 0; background: var(--bg-1); color: var(--muted); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line-strong); }
+.seg button[aria-pressed="true"] { background: var(--text-hi); color: var(--bg-1); }
+.seg button:focus-visible, .btn:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+.escritorio { padding: 32px 16px 40px; display: flex; justify-content: center; }
+
+/* la ventana de Cronos */
+.win { width: 980px; border: 1px solid var(--line-strong); background: var(--bg-1); display: grid; grid-template-rows: 30px auto 24px; }
+.top { display: flex; align-items: center; gap: 10px; padding: 0 6px 0 8px; background: var(--bg-2); border-bottom: 1px solid var(--line); cursor: move; user-select: none; }
+.top img { width: 18px; height: 18px; display: block; }
+.top .nombre { font: 600 11px var(--data); letter-spacing: .16em; color: var(--text-hi); }
+.top .estado { font: 400 11px var(--mono); color: var(--faint); margin-left: 8px; }
+.top .espacio { flex: 1; }
+.btn { width: 28px; height: 22px; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--radius); background: transparent; color: var(--muted); font-size: 13px; cursor: pointer; }
+.btn:hover { background: var(--bg-3); border-color: var(--line); color: var(--text-hi); }
+.btn[aria-pressed="true"] { color: var(--text-hi); border-color: var(--line-strong); background: var(--bg-3); }
+
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+thead th { height: 24px; background: var(--bg-2); border-bottom: 1px solid var(--line); text-align: left; padding: 0 12px; font: 600 10.5px var(--data); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+thead th small { font: 400 10.5px var(--mono); letter-spacing: 0; text-transform: none; color: var(--faint); margin-left: 6px; }
+tbody td { height: 52px; padding: 0 12px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: var(--bg-2); }
+col.c-cuenta { width: 240px; } col.c-mens { width: 150px; }
+
+.cuenta .n { font: 600 13px var(--ui); color: var(--text-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cuenta .e { font: 400 11px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cuenta .p { font: 500 10.5px var(--data); letter-spacing: .04em; color: var(--faint); }
+.cuenta .avisos { display: inline-block; margin-left: 6px; }
+
+.ventana .lin { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 8px; }
+.pct { font: 500 19px/1 var(--mono); color: var(--text-hi); text-align: right; }
+.pct i { font: 400 11px var(--mono); font-style: normal; color: var(--muted); margin-left: 1px; }
+.pista { position: relative; height: 8px; background: var(--track); border-radius: var(--radius); }
+.pista .lleno { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: var(--radius); }
+.alto .lleno { background: var(--danger); }
+.alto .pct { color: var(--danger); }
+/* firma funcional: marca de tiempo transcurrido de la ventana y escala de horas */
+.pista .marca { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text-hi); margin-left: -1px; }
+.pista .escala { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(20% - 1px), rgba(128,128,140,.55) calc(20% - 1px) 20%); pointer-events: none; }
+.pista.sem .escala { background: repeating-linear-gradient(90deg, transparent 0 calc(14.2857% - 1px), rgba(128,128,140,.55) calc(14.2857% - 1px) 14.2857%); }
+.reset { margin: 4px 0 0 60px; font: 400 11px var(--mono); color: var(--muted); white-space: nowrap; }
+.reset b { font-weight: 500; color: var(--text); }
+
+.mensual { font: 400 11px/1.35 var(--mono); color: var(--muted); }
+.mensual b { font: 500 13px var(--mono); color: var(--text-hi); display: block; }
+.nd { color: var(--faint); }
+
+td.sin { color: var(--warn); background: var(--warn-bg); border-left: 1px solid var(--warn-line); font: 500 12px var(--ui); }
+td.sin::before { content: "▲ "; font-size: 10px; }
+tbody tr:hover td.sin { background: var(--warn-bg); }
+
+.tip { position: relative; display: inline-block; font: 500 10px var(--data); letter-spacing: .06em; color: var(--warn); background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: var(--radius); padding: 0 5px; cursor: help; text-transform: uppercase; }
+.tip::after { content: attr(data-tip); position: absolute; left: 0; top: 20px; z-index: 5; width: max-content; max-width: 280px; padding: 5px 8px; background: var(--text-hi); color: var(--bg-1); font: 400 11px/1.35 var(--ui); letter-spacing: 0; text-transform: none; border-radius: var(--radius); display: none; }
+.tip:hover::after, .tip:focus::after { display: block; }
+.tip:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+
+.bar-estado { display: flex; align-items: center; gap: 14px; padding: 0 10px; background: var(--bg-2); border-top: 1px solid var(--line); font: 400 10.5px var(--mono); color: var(--muted); letter-spacing: .02em; }
+.bar-estado .sep { width: 1px; height: 12px; background: var(--line-strong); }
+.bar-estado .mk { display: inline-block; width: 2px; height: 11px; background: var(--text-hi); vertical-align: -2px; margin-right: 6px; }
+.bar-estado .espacio { flex: 1; }
+
+.nota { max-width: 980px; margin: 18px auto 0; font: 12px/1.5 var(--ui); color: var(--muted); }
+.nota b { color: var(--text-hi); }
+.nuevo { outline: 1px dashed var(--accent); outline-offset: 2px; }
+body:not(.ver-nuevo) .nuevo { outline: 0; }
+</style>
+</head>
+<body>
+<div class="demo">
+  <b>Cronos · 01 Professional Studio</b>
+  <span>Tema <span class="seg" id="seg-tema"><button data-v="light" aria-pressed="true">Claro</button><button data-v="dark" aria-pressed="false">Noche</button></span></span>
+  <span>Estado <span class="seg" id="seg-estado"><button data-v="ok" aria-pressed="true">Todo bien</button><button data-v="problemas" aria-pressed="false">Con avisos</button></span></span>
+  <span>Novedades <span class="seg" id="seg-nuevo"><button data-v="0" aria-pressed="true">Ocultar</button><button data-v="1" aria-pressed="false">Resaltar</button></span></span>
+</div>
+
+<div class="escritorio">
+  <div>
+    <div class="win" id="win">
+      <div class="top">
+        <img src="data:image/png;base64,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" alt="">
+        <span class="nombre">CRONOS</span>
+        <span class="estado" id="estado">ACTUALIZADO 11:35</span>
+        <span class="espacio"></span>
+        <button class="btn nuevo" id="b-tema" title="Claro / noche (novedad: hoy la app solo tiene tema oscuro)" data-note="Novedad: conmutador de tema">☀</button>
+        <button class="btn" id="b-pin" aria-pressed="true" title="Siempre encima">📌</button>
+        <button class="btn" title="Refrescar ahora">⟳</button>
+        <button class="btn" title="Cerrar">✕</button>
+      </div>
+      <table>
+        <colgroup><col class="c-cuenta"><col><col><col class="c-mens"></colgroup>
+        <thead><tr><th>Cuenta</th><th>Sesión<small>5 h</small></th><th>Semana<small>7 d</small></th><th>Mensual</th></tr></thead>
+        <tbody id="filas"></tbody>
+      </table>
+      <div class="bar-estado" id="bar-estado"></div>
+    </div>
+    <p class="nota">Datos de ejemplo. <b>Cuenta atrás y marcas</b> calculadas a las 11:35 del lunes. <b>Marca vertical</b> = tiempo transcurrido de la ventana (propuesta nueva: se deduce de la hora de reset menos 5 h / 7 d; hoy la app no la dibuja). Activa «Novedades · Resaltar» para ver con línea discontinua lo que no existe hoy.</p>
+  </div>
+</div>
+
+<script>
+const fmt = m => { const d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), n = m % 60; return d ? `${d} d ${h} h` : h ? `${h} h ${n} min` : `${n} min`; };
+const base = [
+  { nombre: 'Ventas Funidelia', email: 'ventas@funidelia.es', org: 'Funidelia', plan: 'Team · Max 5x',
+    ses: { pct: 16, restan: 105, hora: '13:20' }, sem: { pct: 13, restan: 7465, hora: 'sáb 16:00' }, mensual: null },
+  { nombre: 'Ventas Echocontrol', email: 'ventas@echocontrol.app', org: 'EchoControl', plan: 'Max 5x',
+    ses: { pct: 62, restan: 195, hora: '14:50' }, sem: { pct: 41, restan: 2725, hora: 'mié 09:00' }, mensual: { usado: 3.5, limite: 50, moneda: 'USD' } },
+  { nombre: 'Javier', email: 'javier@thestromboliproject.com', org: 'The Stromboli Project', plan: 'Pro',
+    ses: { pct: 87, restan: 35, hora: '12:10' }, sem: { pct: 74, restan: 6145, hora: 'vie 18:00' }, mensual: null },
+  { nombre: 'Soporte', email: 'soporte@echocontrol.app', org: 'EchoControl', plan: 'Max 20x',
+    ses: { pct: 3, restan: 295, hora: '16:30' }, sem: { pct: 8, restan: 8545, hora: 'dom 10:00' }, mensual: null },
+];
+const problemas = base.map((c, i) => i === 1 ? { ...c, aviso: 'límite de consultas de la API (429); reintento más tarde', datoDe: '11:21' }
+  : i === 2 ? { ...c, error: 'no disponible: token caducado; vuelve a iniciar sesión' }
+  : i === 3 ? { ...c, nombre: 'Cuenta 4', email: null, org: '', plan: '', error: 'no disponible: sin sesión iniciada en esta carpeta' } : c);
+
+function ventana(v, ventanaMin, clase) {
+  const trans = Math.max(0, Math.min(100, 100 - v.restan / ventanaMin * 100));
+  const alto = v.pct >= 80 ? ' alto' : '';
+  return `<td class="ventana${alto}"><div class="lin"><div class="pct">${v.pct}<i>%</i></div>
+    <div class="pista ${clase}"><div class="lleno" style="width:${v.pct}%"></div><div class="escala"></div>
+    <div class="marca nuevo" style="left:${trans}%" title="Tiempo transcurrido de la ventana: ${Math.round(trans)} %"></div></div></div>
+    <div class="reset">reset <b>${v.hora}</b> · en ${fmt(v.restan)}</div></td>`;
+}
+function mensual(m) {
+  if (!m) return '<td><div class="mensual"><b class="nd">—</b>créditos extra desactivados</div></td>';
+  return `<td><div class="mensual"><b>${m.usado.toFixed(2)} ${m.moneda}</b>de ${m.limite.toFixed(2)} este mes</div></td>`;
+}
+function pintar(estado) {
+  const datos = estado === 'ok' ? base : problemas;
+  const f = document.getElementById('filas');
+  f.innerHTML = datos.map(c => {
+    const id = `<td class="cuenta"><div class="n">${c.nombre}${c.aviso ? `<span class="tip" tabindex="0" data-tip="${c.aviso}">⚠ dato de ${c.datoDe}</span>` : ''}</div>
+      <div class="e">${c.email || 'email desconocido'}</div><div class="p">${[c.org, c.plan].filter(Boolean).join(' · ') || '—'}</div></td>`;
+    if (c.error) return `<tr>${id}<td class="sin" colspan="3">${c.error}</td></tr>`;
+    return `<tr>${id}${ventana(c.ses, 300, 'ses')}${ventana(c.sem, 10080, 'sem')}${mensual(c.mensual)}</tr>`;
+  }).join('');
+  const con = datos.filter(c => !c.error).length, av = datos.filter(c => c.aviso).length;
+  document.getElementById('bar-estado').innerHTML =
+    `<span>${datos.length} CUENTAS</span><span class="sep"></span><span>${con} CON DATOS</span>` + (av ? `<span class="sep"></span><span style="color:var(--warn)">${av} AVISO</span>` : '') +
+    `<span class="espacio"></span><span><i class="mk nuevo"></i>TIEMPO TRANSCURRIDO</span><span class="sep"></span><span>CONSULTA CADA 60 S</span>`;
+}
+function marcar(id, v) { document.querySelectorAll(`#${id} button`).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v)); }
+function tema(t) { document.documentElement.dataset.theme = t; marcar('seg-tema', t); document.getElementById('b-tema').textContent = t === 'light' ? '☀' : '🌙'; }
+document.querySelectorAll('#seg-tema button').forEach(b => b.onclick = () => tema(b.dataset.v));
+document.getElementById('b-tema').onclick = () => tema(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+document.querySelectorAll('#seg-estado button').forEach(b => b.onclick = () => { marcar('seg-estado', b.dataset.v); pintar(b.dataset.v); });
+document.querySelectorAll('#seg-nuevo button').forEach(b => b.onclick = () => { marcar('seg-nuevo', b.dataset.v); document.body.classList.toggle('ver-nuevo', b.dataset.v === '1'); });
+document.getElementById('b-pin').onclick = e => e.currentTarget.setAttribute('aria-pressed', e.currentTarget.getAttribute('aria-pressed') !== 'true');
+const params = new URLSearchParams(location.search);
+if (params.get('tema')) tema(params.get('tema'));
+const est = params.get('estado') === 'problemas' ? 'problemas' : 'ok';
+marcar('seg-estado', est); pintar(est);
+if (params.get('nuevo') === '1') { marcar('seg-nuevo', '1'); document.body.classList.add('ver-nuevo'); }
+</script>
+</body>
+</html>
