@@ -14,7 +14,9 @@ Copia la estética de Roaring Lion (su `DESIGN.md`, paleta «Piedra»); la inter
   = cuánto te adelantas a esa raya, con la regla de Lion (S-792): hasta 5 puntos = verde, hasta 15 = ámbar,
   más = rojo, ventana llena = rojo. Añadido en Cronos: **azul** si vas más de 25 puntos por debajo (sobra cuota).
 - En la semana, «at this pace, out Tue 15:41» (rojo) si al ritmo medio la agotarías antes del reset.
-- **Fila lima** = la cuenta que usa Claude Code en este PC (la carpeta `~/.claude`).
+- **Punto lima** tras el nombre = la cuenta que usa Claude Code en este PC (la carpeta `~/.claude`); al pasar el
+  ratón lo explica. No toca el fondo de la fila. (Los prototipos 05 y 06 de `design-exploration/` conservan la
+  fila lima original como registro.)
 - Pasa el ratón por una sesión o semana: panel con la explicación, el veredicto y las barras «Used» y
   «Even pace». ⚠ junto al nombre = datos antiguos (el motivo, al pasar el ratón).
 - Prototipos y capturas de la elección: `design-exploration/` (rama `experiment/ui-redesign`).

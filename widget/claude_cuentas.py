@@ -47,10 +47,10 @@ def mezcla(a, b, t):
 _CHROME = dict(chrome='#413a34', chrome2='#524a43', chrome_ink='#f7f3ec', chrome_muted='#c6bcaf', chrome_line='#675f57')
 TEMAS = {
     'oscuro': dict(_CHROME, row_bg='#413a34', row_hover=mezcla('#413a34', '#f7f3ec', .06),
-                   row_cur=mezcla('#413a34', ACENTO, .10), row_cur_hover=mezcla('#413a34', ACENTO, .14),
+                   marca=ACENTO,
                    ink='#f7f3ec', muted='#c6bcaf', line='#675f57', track='#675f57', tick='#f7f3ec',
                    warn_txt='#e3a948', warn_bg=mezcla('#413a34', '#e3a948', .12), warn_line=mezcla('#413a34', '#e3a948', .40)),
-    'claro': dict(_CHROME, row_bg='#fcfaf6', row_hover='#f4f0e8', row_cur='#c6f685', row_cur_hover='#c6f685',
+    'claro': dict(_CHROME, row_bg='#fcfaf6', row_hover='#f4f0e8', marca='#6a9f1f',
                   ink='#29231e', muted='#6e655c', line='#e5dfd6', track='#ddd6cb', tick='#29231e',
                   warn_txt='#7a4f00', warn_bg='#fbf0d6', warn_line='#e6cf94'),
 }
@@ -262,17 +262,12 @@ class Widget:
 
     def _fila(self, i, d, ahora):
         C = self.C
-        actual = bool(d.get('esta'))
-        bg = C['row_cur'] if actual else C['row_bg']
+        bg = C['row_bg']
         fila = tk.Frame(self.cuerpo, bg=bg)
         fila.pack(fill='x')
         dentro = tk.Frame(fila, bg=bg, height=ALTO_FILA, width=ANCHO_INTERIOR)
         dentro.pack(fill='x', padx=16)
         dentro.pack_propagate(False)
-        if actual and self.tema == 'oscuro':  # franja lima de la fila «de este PC» (como el borde del panel de RAM)
-            franja = tk.Frame(fila, bg=ACENTO, width=3)
-            franja.place(x=0, y=0, relheight=1)
-            franja._fijo = True
 
         ident = tk.Frame(dentro, bg=bg, width=200, height=52)
         ident.pack_propagate(False)
@@ -280,6 +275,10 @@ class Widget:
         linea = tk.Frame(ident, bg=bg)
         linea.pack(anchor='w', fill='x')
         tk.Label(linea, text=d['nombre'], fg=C['ink'], bg=bg, font=(FUENTE, 10, 'bold')).pack(side='left')
+        if d.get('esta'):  # la cuenta con la que se usa Claude Code en este PC: un punto tras el nombre, sin tocar el fondo
+            punto = tk.Label(linea, text=' ●', fg=C['marca'], bg=bg, font=(FUENTE, 7), cursor='question_arrow')
+            punto.pack(side='left')
+            self._ayuda_simple(punto, 'The account Claude Code is signed in with on this PC')
         con_datos = d['estado'] == 'ok' and bool(d['sesion'] or d['semana'])
         if con_datos and d['error']:  # datos antiguos: el motivo va en la ayuda del aviso
             aviso = tk.Label(linea, text=' ⚠', fg=C['warn_txt'], bg=bg, font=(FUENTE, 10), cursor='question_arrow')
@@ -304,7 +303,7 @@ class Widget:
             tk.Label(plan, text=d['plan'] or '—', fg=C['ink'], bg=bg, font=(FUENTE, 10, 'bold'), anchor='w').pack(anchor='w')
             tk.Label(plan, text=texto_extra(d['mensual']), fg=C['muted'], bg=bg, font=(FUENTE, 9), anchor='w').pack(anchor='w', pady=(6, 0))
 
-        self._ligar_hover(fila, actual)
+        self._ligar_hover(fila)
 
     def _bloque(self, padre, bg, titulo, v, span, id_, d, ahora):
         C = self.C
@@ -363,7 +362,7 @@ class Widget:
         viejo.destroy()
 
     # --- hover de fila y panel emergente (el de RAM de Lion) ----------------------------------
-    def _ligar_hover(self, fila, actual):
+    def _ligar_hover(self, fila):
         def recolorear(w, color):
             if getattr(w, '_fijo', False):
                 return
@@ -375,14 +374,14 @@ class Widget:
                 recolorear(h, color)
 
         def dentro(_e=None):
-            recolorear(fila, self.C['row_cur_hover'] if actual else self.C['row_hover'])
+            recolorear(fila, self.C['row_hover'])
 
         def fuera(_e=None):
             x, y = self.raiz.winfo_pointerxy()
             w = self.raiz.winfo_containing(x, y)
             if w is not None and str(w).startswith(str(fila)):
                 return  # solo cambió de hijo dentro de la misma fila
-            recolorear(fila, self.C['row_cur'] if actual else self.C['row_bg'])
+            recolorear(fila, self.C['row_bg'])
 
         def ligar(w):
             w.bind('<Enter>', dentro, add='+')
