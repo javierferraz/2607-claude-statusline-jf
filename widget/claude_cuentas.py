@@ -94,6 +94,7 @@ class Widget:
         self.tip_win = self.tip_id = self.tip_cierre = None
         self.bloques = {}
         self.tramos = {'ok': 0, 'low': 0, 'warn': 0, 'danger': 0}
+        self._firma = None  # lo último que se pintó: si no cambia, no se repinta (evita el parpadeo)
 
         pos = self._leer_ventana()
         self.tema = tema or (pos.get('tema') if pos.get('tema') in TEMAS else 'oscuro')
@@ -129,6 +130,7 @@ class Widget:
         """Barra de título, cuerpo y barra de estado. Se rehace entera al cambiar de tema."""
         C = self.C
         self.ocultar_tip()
+        self._firma = None
         for w in self.marco.winfo_children():
             w.destroy()
         self.marco.config(bg=C['chrome'], highlightbackground=C['chrome_line'], highlightcolor=C['chrome_line'])
@@ -191,7 +193,8 @@ class Widget:
         if self.ocupado:
             return
         self.ocupado = True
-        self.lbl_hora.config(text='updating…')
+        if forzar:  # en las consultas automáticas el texto no cambia: así no parpadea cada minuto
+            self.lbl_hora.config(text='updating…')
 
         def trabajo():
             try:
@@ -237,16 +240,24 @@ class Widget:
     # --- pintado ----------------------------------------------------------------------------
     def pintar(self):
         C = self.C
+        ahora = datetime.now()
+        # Los datos y el minuto (las cuentas atrás cambian por minutos) definen lo que se ve: si es lo mismo
+        # que la última vez no se toca nada, y con el panel emergente abierto tampoco se cierra.
+        firma = (self.tema, json.dumps(self.datos, sort_keys=True, default=str), ahora.strftime('%Y%m%d%H%M'))
+        if firma == self._firma:
+            return
+        self._firma = firma
         self.ocultar_tip()
         self.bloques = {}
-        for w in self.cuerpo.winfo_children():
-            w.destroy()
-        ahora = datetime.now()
+        viejo = self.cuerpo
+        self.cuerpo = tk.Frame(self.marco, bg=C['row_bg'])  # se monta aparte y se cambia de golpe, sin ventana vacía
         self.tramos = {'ok': 0, 'low': 0, 'warn': 0, 'danger': 0}
         for i, d in enumerate(self.datos):
             if i:
                 tk.Frame(self.cuerpo, height=1, bg=C['line']).pack(fill='x')
             self._fila(i, d, ahora)
+        self.cuerpo.pack(fill='x', before=self.estado)
+        viejo.destroy()
         self._pintar_estado()
 
     def _fila(self, i, d, ahora):
@@ -329,8 +340,10 @@ class Widget:
 
     def _pintar_estado(self):
         C = self.C
-        for w in self.estado.winfo_children():
-            w.destroy()
+        viejo = self.estado
+        self.estado = tk.Frame(self.marco, bg=C['chrome2'], height=24)  # igual: se monta aparte y se cambia de golpe
+        self.estado.pack_propagate(False)
+        self.estado.pack(fill='x')
         con = sum(1 for d in self.datos if d['estado'] == 'ok' and (d['sesion'] or d['semana']))
         antiguos = sum(1 for d in self.datos if d['estado'] == 'ok' and (d['sesion'] or d['semana']) and d['error'])
 
@@ -347,6 +360,7 @@ class Widget:
         etiqueta('┃ even pace', lado='right')
         for nombre, clave in (('over', 'danger'), ('ahead', 'warn'), ('on pace', 'ok'), ('spare', 'low')):
             etiqueta(f'● {nombre}', TRAMOS[clave], lado='right', padx=(0, 10))
+        viejo.destroy()
 
     # --- hover de fila y panel emergente (el de RAM de Lion) ----------------------------------
     def _ligar_hover(self, fila, actual):
