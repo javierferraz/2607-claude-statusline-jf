@@ -226,5 +226,60 @@ class Cuentas(unittest.TestCase):
             uso.cargar_cuentas(ruta)
 
 
+    def _contador(self, uso_resp):
+        n = {'uso': 0}
+
+        def http(url, token=None, cuerpo=None):
+            if url == uso.URL_USO:
+                n['uso'] += 1
+                return uso_resp
+            return {'account': {'email': 'j@x.es'}, 'organization': {'name': 'Org'}}
+        return n, http
+
+    def test_reposo_si_no_cambia(self):
+        """Sin cambios durante 5 min se consulta cada 5 min; con actividad, cada minuto."""
+        from datetime import datetime, timezone
+        d = crear_carpeta(self.base, 'j', 'tok-j', 'j@x.es')
+        t0 = time.time()
+        futuro = datetime.fromtimestamp(t0 + 86400, tz=timezone.utc).isoformat()
+        resp = {'five_hour': {'utilization': 10.0, 'resets_at': futuro},
+                'seven_day': {'utilization': 12.0, 'resets_at': futuro}}
+        n, http = self._contador(resp)
+        cache, cu = {}, {'alias': 'J', 'dir': d}
+        uso.consultar_cuenta(cu, cache, http, ahora=t0)
+        uso.consultar_cuenta(cu, cache, http, ahora=t0 + 30)
+        self.assertEqual(n['uso'], 1)                        # dentro de los 60 s
+        uso.consultar_cuenta(cu, cache, http, ahora=t0 + 70)
+        self.assertEqual(n['uso'], 2)                        # al minuto, vuelve a mirar
+        uso.consultar_cuenta(cu, cache, http, ahora=t0 + 310)
+        self.assertEqual(n['uso'], 2)                        # 5 min sin cambios: reposo, no consulta
+        r = uso.consultar_cuenta(cu, cache, http, ahora=t0 + 380)
+        self.assertEqual(n['uso'], 3)                        # pasan 5 min desde la última
+        self.assertIsNone(r['dato_de'])                      # y el dato no se marca como antiguo
+        resp['five_hour']['utilization'] = 15.0              # hay actividad: vuelve a cada minuto
+        uso.consultar_cuenta(cu, cache, http, ahora=t0 + 700)
+        uso.consultar_cuenta(cu, cache, http, ahora=t0 + 770)
+        self.assertEqual(n['uso'], 5)
+
+    def test_reset_y_forzar_saltan_el_reposo(self):
+        from datetime import datetime, timezone
+        d = crear_carpeta(self.base, 'k', 'tok-k', 'k@x.es')
+        t0 = time.time()
+        reset = datetime.fromtimestamp(t0 + 100, tz=timezone.utc).isoformat()
+        resp = {'five_hour': {'utilization': 10.0, 'resets_at': reset},
+                'seven_day': {'utilization': 12.0, 'resets_at': reset}}
+        n, http = self._contador(resp)
+        cache, cu = {}, {'alias': 'K', 'dir': d}
+        uso.consultar_cuenta(cu, cache, http, ahora=t0)
+        cache[d]['uso_cambio_ts'] = t0 - 1000                # en reposo
+        uso.consultar_cuenta(cu, cache, http, ahora=t0 + 90)
+        self.assertEqual(n['uso'], 1)                        # reposo: no consulta
+        uso.consultar_cuenta(cu, cache, http, ahora=t0 + 120)
+        self.assertEqual(n['uso'], 2)                        # se reinició la ventana: consulta
+        cache[d]['uso_cambio_ts'] = t0 - 1000
+        uso.consultar_cuenta(cu, cache, http, ahora=t0 + 130, forzar=True)
+        self.assertEqual(n['uso'], 3)                        # ⟳ siempre consulta
+
+
 if __name__ == '__main__':
     unittest.main()

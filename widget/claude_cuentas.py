@@ -1,4 +1,4 @@
-"""Widget de escritorio: consumo de varias cuentas de Claude (sesión de 5 h, semana y mensual).
+"""Cronos, widget de escritorio: consumo de varias cuentas de Claude (sesión de 5 h, semana y mensual).
 
 Arranque sin consola:  pythonw claude_cuentas.py   (o lanzar-widget.vbs)
 Captura de prueba:     python claude_cuentas.py --captura salida.png [--cuentas otro.json]
@@ -59,7 +59,7 @@ class Widget:
         self.ocupado = False
 
         self.raiz = tk.Tk()
-        self.raiz.title('Claude · cuentas')
+        self.raiz.title('Cronos')
         self.raiz.overrideredirect(True)
         self.raiz.configure(bg=FONDO)
         pos = self._leer_ventana()
@@ -72,11 +72,11 @@ class Widget:
 
         cab = tk.Frame(self.raiz, bg=FONDO)
         cab.pack(fill='x', padx=8, pady=(6, 2))
-        tit = tk.Label(cab, text='Claude · consumo por cuenta', fg=GRIS, bg=FONDO, font=(FUENTE, 9))
+        tit = tk.Label(cab, text='Cronos · consumo de Claude por cuenta', fg=GRIS, bg=FONDO, font=(FUENTE, 9))
         tit.pack(side='left')
         self.lbl_hora = tk.Label(cab, text='', fg=GRIS, bg=FONDO, font=(FUENTE, 8))
         self.lbl_hora.pack(side='left', padx=8)
-        for texto, accion, ayuda in (('✕', self.cerrar, 'Cerrar'), ('⟳', self.refrescar, 'Refrescar'),
+        for texto, accion, ayuda in (('✕', self.cerrar, 'Cerrar'), ('⟳', lambda: self.refrescar(True), 'Refrescar'),
                                      ('📌', self.alternar_encima, 'Siempre encima')):
             b = tk.Label(cab, text=texto, fg=TEXTO, bg=FONDO, font=(FUENTE, 11), cursor='hand2')
             b.pack(side='right', padx=3)
@@ -100,7 +100,7 @@ class Widget:
             self.raiz.after(TICK_MS, self._tick)
 
     # --- datos -------------------------------------------------------------------------
-    def refrescar(self):
+    def refrescar(self, forzar=False):
         if self.ocupado:
             return
         self.ocupado = True
@@ -108,7 +108,7 @@ class Widget:
 
         def trabajo():
             try:
-                self.cola.put(consultar_todas(cargar_cuentas(self.ruta_cuentas)))
+                self.cola.put(consultar_todas(cargar_cuentas(self.ruta_cuentas), forzar=forzar))
             except Exception as e:  # noqa: BLE001 - se enseña en la ventana
                 self.cola.put(e)
         # No es daemon: si se cierra la ventana mientras renueva un token, la escritura termina.

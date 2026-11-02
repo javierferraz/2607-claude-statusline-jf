@@ -11,7 +11,7 @@ import time
 import urllib.error
 import urllib.request
 
-from formato import etiqueta_plan, nombres_amistosos
+from formato import a_fecha, etiqueta_plan, nombres_amistosos
 
 URL_USO = 'https://api.anthropic.com/api/oauth/usage'
 URL_PERFIL = 'https://api.anthropic.com/api/oauth/profile'
@@ -21,6 +21,9 @@ CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
 CABECERAS = {'anthropic-beta': 'oauth-2025-04-20', 'Content-Type': 'application/json'}
 
 CACHE_USO_S = 60
+# Si los datos no cambian en SIN_CAMBIOS_S, se consulta solo cada CACHE_USO_REPOSO_S.
+SIN_CAMBIOS_S = 300
+CACHE_USO_REPOSO_S = 300
 CACHE_PERFIL_S = 3600
 ESPERA_429_S = 300
 ESPERA_RENOVAR_S = 300
@@ -150,13 +153,33 @@ def _mensual(extra):
             'limite': n(extra.get('monthly_limit')), 'moneda': extra.get('currency')}
 
 
+def _ttl_uso(c, ahora):
+    """Cada cuánto se vuelve a pedir el uso: 60 s con actividad, 5 min si lleva 5 min sin cambiar."""
+    sin_cambios = ahora - c.get('uso_cambio_ts', ahora)
+    return CACHE_USO_REPOSO_S if sin_cambios >= SIN_CAMBIOS_S else CACHE_USO_S
+
+
+def _reset_pasado(c, ahora):
+    """True si una ventana se reinició después de la última consulta (el dato guardado ya no vale)."""
+    uso = c.get('uso') or {}
+    for k in ('five_hour', 'seven_day'):
+        d = a_fecha((uso.get(k) or {}).get('resets_at'))
+        if d and c.get('uso_ts', 0) < d.timestamp() <= ahora:
+            return True
+    return False
+
+
+def _firma(uso):
+    return [(uso.get(k) or {}).get('utilization') for k in ('five_hour', 'seven_day')] +         [(uso.get('extra_usage') or {}).get('used_credits')]
+
+
 def _ventana(bloque):
     if not isinstance(bloque, dict) or bloque.get('utilization') is None:
         return None
     return {'pct': round(float(bloque['utilization'])), 'reset': bloque.get('resets_at')}
 
 
-def consultar_cuenta(cuenta, cache, http=_http, ahora=None):
+def consultar_cuenta(cuenta, cache, http=_http, ahora=None, forzar=False):
     """Devuelve el estado de una cuenta; los fallos esperables van en 'estado'/'error'."""
     ahora = ahora or time.time()
     alias = cuenta.get('alias') or cuenta.get('dir')
@@ -213,12 +236,15 @@ def consultar_cuenta(cuenta, cache, http=_http, ahora=None):
             res['email'], res['org'] = perfil['email'], perfil.get('org') or res['org']
 
         # Uso, cacheado y con espera tras un 429 (como fetchOAuthUsage en src/dataSource.ts).
-        fresco = c.get('uso') is not None and ahora - c.get('uso_ts', 0) < CACHE_USO_S
+        fresco = (c.get('uso') is not None and not forzar and not _reset_pasado(c, ahora)
+                  and ahora - c.get('uso_ts', 0) < _ttl_uso(c, ahora))
         bloqueado = ahora < c.get('espera_hasta', 0)
         if not fresco and not bloqueado:
             try:
                 uso = http(URL_USO, token)
                 if uso.get('five_hour') or uso.get('seven_day'):
+                    if _firma(uso) != c.get('uso_firma'):
+                        c['uso_firma'], c['uso_cambio_ts'] = _firma(uso), ahora
                     c['uso'], c['uso_ts'], c['espera_hasta'] = uso, ahora, 0
                 else:
                     res['error'] = 'la API no devolvió datos de uso'
@@ -242,7 +268,7 @@ def consultar_cuenta(cuenta, cache, http=_http, ahora=None):
         res['sesion'] = _ventana(uso.get('five_hour'))
         res['semana'] = _ventana(uso.get('seven_day'))
         res['mensual'] = _mensual(uso.get('extra_usage'))
-        if ahora - c.get('uso_ts', ahora) >= CACHE_USO_S * 2:
+        if ahora - c.get('uso_ts', ahora) >= _ttl_uso(c, ahora) * 2:
             res['dato_de'] = c.get('uso_ts')
     elif res['estado'] == 'ok' and not res['error']:
         res['error'] = 'sin datos todavía'
@@ -261,12 +287,12 @@ def cargar_cuentas(ruta):
     return datos
 
 
-def consultar_todas(cuentas, http=_http):
+def consultar_todas(cuentas, http=_http, forzar=False):
     cache = cargar_cache()
     res = []
     for c in cuentas:
         try:
-            res.append(consultar_cuenta(c, cache, http))
+            res.append(consultar_cuenta(c, cache, http, forzar=forzar))
         except Exception as e:  # noqa: BLE001 - un fallo inesperado solo afecta a su cuenta
             res.append({'alias': c.get('alias') or c.get('dir'), 'nombre': c.get('alias') or c.get('dir'),
                         'dir': c.get('dir'), 'email': None, 'org': None,

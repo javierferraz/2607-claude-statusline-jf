@@ -1,4 +1,4 @@
-# Widget de escritorio · consumo de varias cuentas de Claude
+# Cronos · widget de escritorio con el consumo de varias cuentas de Claude
 
 Ventana pequeña para el escritorio (Python + tkinter, sin dependencias; solo la opción `--captura` usa Pillow) con, por cada cuenta:
 email y organización, **sesión de 5 h** (% y hora de reset), **semana** (% y día/hora de reset) y
@@ -18,7 +18,9 @@ VS Code de este repo y usa la misma fuente de datos (`src/dataSource.ts`).
 - El nombre de cada cuenta sale de su email: la parte anterior a la @ en PROPER (`ventas@funidelia.es`
   → **Ventas**). Si dos cuentas comparten esa parte, se añade el dominio sin la terminación
   (**Ventas Funidelia**). El `alias` de `cuentas.json` solo se usa mientras no se conoce el email.
-- Refresca cada 60 s, con caché por cuenta y espera tras un 429. Si una cuenta no tiene datos,
+- Consulta el uso cada 60 s; si una cuenta lleva 5 min sin cambiar, pasa a una consulta cada 5 min
+  y vuelve a cada minuto en cuanto cambia. Consulta al momento si se reinicia una ventana (sesión o
+  semana) o si pulsas ⟳. Caché por cuenta y espera tras un 429. Si una cuenta no tiene datos,
   sale «no disponible» con el motivo; nunca se muestra un 0 % inventado. Si la API no responde, se
   enseña el último dato marcado en naranja como «dato de HH:MM».
 
@@ -27,7 +29,7 @@ VS Code de este repo y usa la misma fuente de datos (`src/dataSource.ts`).
 1. `copy cuentas.example.json cuentas.json` y ajusta alias y carpetas (sin secretos; fuera de git).
 2. Inicia sesión una vez en cada cuenta extra, cada una en su carpeta (PowerShell, una línea):
    `$env:CLAUDE_CONFIG_DIR="$HOME\.claude-cuenta2"; claude auth login; Remove-Item Env:CLAUDE_CONFIG_DIR`
-3. Abre el widget con `lanzar-widget.vbs` (sin consola) o con el acceso directo «Claude cuentas».
+3. Abre el widget con `lanzar-widget.vbs` (sin consola) o con el acceso directo «Cronos» del escritorio (icono `cronos.ico`: un reloj de arena).
 
 Arrastra la cabecera para moverlo; 📌 activa o desactiva «siempre encima»; ⟳ refresca; ✕ cierra.
 La posición se guarda en `%LOCALAPPDATA%\ClaudeCuentasWidget`.
