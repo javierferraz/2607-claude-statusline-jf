@@ -11,7 +11,7 @@ import time
 import urllib.error
 import urllib.request
 
-from formato import etiqueta_plan
+from formato import etiqueta_plan, nombres_amistosos
 
 URL_USO = 'https://api.anthropic.com/api/oauth/usage'
 URL_PERFIL = 'https://api.anthropic.com/api/oauth/profile'
@@ -163,7 +163,7 @@ def consultar_cuenta(cuenta, cache, http=_http, ahora=None):
     carpeta = expandir(cuenta.get('dir') or '~/.claude')
     ruta_cred = os.path.join(carpeta, '.credentials.json')
     c = cache.setdefault(carpeta, {})
-    res = {'alias': alias, 'dir': carpeta, 'email': None, 'org': None, 'plan': '',
+    res = {'alias': alias, 'nombre': alias, 'dir': carpeta, 'email': None, 'org': None, 'plan': '',
            'sesion': None, 'semana': None, 'mensual': None,
            'estado': 'ok', 'error': None, 'dato_de': None}
 
@@ -268,8 +268,12 @@ def consultar_todas(cuentas, http=_http):
         try:
             res.append(consultar_cuenta(c, cache, http))
         except Exception as e:  # noqa: BLE001 - un fallo inesperado solo afecta a su cuenta
-            res.append({'alias': c.get('alias') or c.get('dir'), 'dir': c.get('dir'), 'email': None, 'org': None,
+            res.append({'alias': c.get('alias') or c.get('dir'), 'nombre': c.get('alias') or c.get('dir'),
+                        'dir': c.get('dir'), 'email': None, 'org': None,
                         'plan': '', 'sesion': None, 'semana': None, 'mensual': None, 'estado': 'error',
                         'error': f'error leyendo la cuenta ({type(e).__name__})', 'dato_de': None})
     guardar_cache(cache)
+    # Nombre para mostrar a partir del email; el alias de cuentas.json solo vale mientras no se conoce.
+    for r, n in zip(res, nombres_amistosos([r['email'] for r in res])):
+        r['nombre'] = n or r['alias']
     return res

@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import uso  # noqa: E402
-from formato import cuenta_atras, etiqueta_plan, texto_mensual, texto_reset_semana, texto_reset_sesion  # noqa: E402
+from formato import cuenta_atras, etiqueta_plan, nombres_amistosos, texto_mensual, texto_reset_semana, texto_reset_sesion  # noqa: E402
 
 USO_REAL = {  # forma de la respuesta real de /api/oauth/usage (2026-11-02), recortada
     'five_hour': {'utilization': 10.0, 'resets_at': '2026-11-02T12:20:00.717029+00:00'},
@@ -62,6 +62,15 @@ class Formato(unittest.TestCase):
         self.assertEqual(texto_reset_sesion(d.timestamp(), d - timedelta(minutes=5)), 'reset en 5 min, a las 13:20')
         self.assertTrue(texto_reset_sesion('2026-11-02T12:20:00+00:00').endswith(
             datetime.fromisoformat('2026-11-02T12:20:00+00:00').astimezone().strftime('%H:%M')))
+
+    def test_nombres_amistosos(self):
+        self.assertEqual(nombres_amistosos(['ventas@funidelia.es']), ['Ventas'])
+        self.assertEqual(nombres_amistosos(['javier.ferraz@x.com', None]), ['Javier.Ferraz', None])
+        # dos cuentas con el mismo id: id + dominio sin terminación
+        self.assertEqual(nombres_amistosos(['ventas@funidelia.es', 'VENTAS@otra.com', 'ana@funidelia.es']),
+                         ['Ventas Funidelia', 'Ventas Otra', 'Ana'])
+        # si aun así chocan (mismo id y mismo dominio base), el email completo
+        self.assertEqual(nombres_amistosos(['a@x.es', 'a@x.com']), ['a@x.es', 'a@x.com'])
 
     def test_plan_y_mensual(self):
         self.assertEqual(etiqueta_plan('team', 'default_claude_max_5x'), 'Team · Max 5x')
@@ -206,6 +215,7 @@ class Cuentas(unittest.TestCase):
             uso.RUTA_CACHE = orig
         self.assertEqual(r[0]['estado'], 'error')
         self.assertEqual(r[1]['sesion']['pct'], 10)
+        self.assertEqual((r[0]['nombre'], r[1]['nombre']), ('Raro', 'I'))  # alias mientras no hay email; 'i@x.es' -> 'I'
 
     def test_cuentas_json(self):
         ruta = os.path.join(self.base, 'cuentas.json')

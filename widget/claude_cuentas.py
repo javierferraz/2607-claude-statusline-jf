@@ -156,13 +156,17 @@ class Widget:
         f = tk.Frame(self.cuerpo, bg=FONDO_FILA)
         f.pack(fill='x', pady=2)
 
-        ident = tk.Frame(f, bg=FONDO_FILA, width=230, height=46)
+        ident = tk.Frame(f, bg=FONDO_FILA, width=240, height=46)
         ident.pack_propagate(False)
         ident.pack(side='left', padx=(10, 6), pady=6)
-        tk.Label(ident, text=f"{d['alias']} · {d['email'] or 'email desconocido'}", fg=TEXTO, bg=FONDO_FILA,
-                 font=(FUENTE, 9, 'bold'), anchor='w').pack(fill='x')
-        sub = ' · '.join(x for x in (d['org'], d['plan']) if x) or '—'
-        tk.Label(ident, text=sub, fg=GRIS, bg=FONDO_FILA, font=(FUENTE, 8), anchor='w').pack(fill='x')
+        linea = tk.Frame(ident, bg=FONDO_FILA)
+        linea.pack(fill='x')
+        tk.Label(linea, text=d['nombre'], fg=TEXTO, bg=FONDO_FILA, font=(FUENTE, 10, 'bold')).pack(side='left')
+        extra = ' · '.join(x for x in (d['org'], d['plan']) if x)
+        if extra:
+            tk.Label(linea, text=f'  {extra}', fg=GRIS, bg=FONDO_FILA, font=(FUENTE, 8)).pack(side='left')
+        tk.Label(ident, text=d['email'] or 'email desconocido', fg=GRIS, bg=FONDO_FILA, font=(FUENTE, 8),
+                 anchor='w').pack(fill='x')
 
         if d['estado'] != 'ok' or (d['sesion'] is None and d['semana'] is None):
             tk.Label(f, text=f"— no disponible: {d['error'] or 'sin datos'}", fg=AVISO, bg=FONDO_FILA,

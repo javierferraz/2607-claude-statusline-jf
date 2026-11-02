@@ -81,6 +81,28 @@ def etiqueta_plan(subscription_type, rate_limit_tier=None):
     return plan
 
 
+def nombres_amistosos(emails):
+    """Emails (None si no se conoce) -> nombres para mostrar (None si no hay email).
+
+    Parte anterior a la @ en PROPER («ventas» -> «Ventas»). Si dos cuentas comparten esa parte,
+    se le añade el dominio sin la terminación («Ventas Funidelia»); si aun así chocan, el email.
+    """
+    def partes(e):
+        local, _, dominio = e.partition('@')
+        return local, dominio.rsplit('.', 1)[0]
+
+    ids = [partes(e)[0].lower() if e else None for e in emails]
+    nombres = []
+    for e, i in zip(emails, ids):
+        if not e:
+            nombres.append(None)
+        elif ids.count(i) > 1:
+            nombres.append(' '.join(x for x in partes(e) if x).title())
+        else:
+            nombres.append(partes(e)[0].title())
+    return [e if n is not None and nombres.count(n) > 1 else n for e, n in zip(emails, nombres)]
+
+
 def texto_mensual(mensual):
     """Créditos extra del mes (único dato mensual que da la API)."""
     if not mensual:

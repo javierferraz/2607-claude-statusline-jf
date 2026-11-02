@@ -15,6 +15,9 @@ VS Code de este repo y usa la misma fuente de datos (`src/dataSource.ts`).
 - En las carpetas con `"renovar": true` no uses a la vez Claude Code: si los dos renuevan el token al mismo
   tiempo, uno se queda con un token inválido y hay que volver a iniciar sesión. Por lo mismo, solo se abre
   un widget a la vez.
+- El nombre de cada cuenta sale de su email: la parte anterior a la @ en PROPER (`ventas@funidelia.es`
+  → **Ventas**). Si dos cuentas comparten esa parte, se añade el dominio sin la terminación
+  (**Ventas Funidelia**). El `alias` de `cuentas.json` solo se usa mientras no se conoce el email.
 - Refresca cada 60 s, con caché por cuenta y espera tras un 429. Si una cuenta no tiene datos,
   sale «no disponible» con el motivo; nunca se muestra un 0 % inventado. Si la API no responde, se
   enseña el último dato marcado en naranja como «dato de HH:MM».
