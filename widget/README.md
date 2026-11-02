@@ -79,7 +79,5 @@ python widget/claude_cuentas.py --captura captura.png
   puntos) son los de Lion y la propuesta de Cronos.
 - Las esquinas redondeadas dependen de Windows 11 (en Windows 10 se ve recta).
 - El servicio de uso no es público: si Anthropic lo cambia, las cuentas salen como «no disponible». La
-  renovación depende de que `claude.exe` esté en `%APPDATA%
-pm
-ode_modules\@anthropic-ai\claude-codein\`
-  (o en el PATH).
+  renovación depende de que `claude.exe` esté en la instalación global de npm (`%APPDATA%/npm/node_modules/@anthropic-ai/claude-code/bin/`)
+  o en el PATH.
