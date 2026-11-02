@@ -4,6 +4,8 @@ Extensión de VS Code que muestra en la barra de estado el uso de Claude Code: m
 
 Los datos se leen directamente de tus propias credenciales locales de Claude Code (`~/.claude/.credentials.json`) y de la API de uso de Anthropic — cada persona ve solo sus propios datos, no hay nada compartido ni embebido en la extensión.
 
+Para ver varias cuentas a la vez fuera de VS Code hay un widget de escritorio en [`widget/`](widget/README.md).
+
 ## Instalación
 
 1. Descarga el `.vsix` de la [última release](../../releases/latest).

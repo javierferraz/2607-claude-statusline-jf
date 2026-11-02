@@ -2,3 +2,5 @@ node_modules/
 out/
 *.vsix
 .vscode-test/
+widget/cuentas.json
+__pycache__/
