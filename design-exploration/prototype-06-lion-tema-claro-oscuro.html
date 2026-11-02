@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cronos · prototipo 06 estilo Roaring Lion con tema claro y oscuro</title>
+<style>
+/* Prototipo 06 = el 05 (estética de Roaring Lion) con tema oscuro por defecto y claro disponible (la «Light list» del 05
+   pasa a ser el tema claro) y filas más altas, a pedido de Javier. Resto igual que el 05:
+   estética de Roaring Lion (DESIGN.md, paleta «Piedra»).
+   Valores copiados de 2610-roaring-lion: chrome piedra #413a34 / #524a43, lista clara #fcfaf6, acento lima
+   #aee659, selección #c6f685, danger #d75928, barras --bar-ok #5fae6b / --ram-warn #e3a948. Segoe UI,
+   interfaz en inglés (como Lion y como el panel de Claude Code de la captura). Barra de consumo 110 × 8,
+   radio 4, con la raya blanca de «ritmo uniforme» (tiempo transcurrido) y el color por ritmo de Lion
+   (S-792): hasta 5 puntos por delante de la raya = verde, 5-15 = ámbar, más de 15 = danger; ventana llena =
+   danger. Añadido a pedido de Javier: azul cuando vas más de 25 puntos POR DEBAJO de la raya («sobra cuota»).
+   Ventana sin marco, esquinas de 10 px; sombra solo en el panel emergente (como el de RAM de Lion). */
+:root {
+  --chrome: #413a34; --chrome2: #524a43; --chrome-ink: #f7f3ec; --chrome-muted: #c6bcaf; --chrome-line: #675f57;
+  --pane-bg: #fcfaf6; --pane-ink: #29231e; --pane-muted: #6e655c; --group-bg: #e5dfd6; --pane-hover: #f4f0e8;
+  --accent: #aee659; --accent-ink: #152502; --sel: #c6f685;
+  --danger: #d75928; --bar-ok: #5fae6b; --bar-warn: #e3a948; --bar-low: #6fa8d6;
+  --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --page: #e9e6e0;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 13px/1.4 var(--font-ui); background: var(--page); color: #29231e; min-height: 100vh; }
+
+/* barra de la página de prototipo (no es parte de la app) */
+.demo { display: flex; gap: 20px; align-items: center; padding: 9px 16px; font-size: 12px; color: #6e655c; background: var(--pane-bg); border-bottom: 1px solid var(--group-bg); }
+.demo b { color: #29231e; font-weight: 600; }
+.seg { display: inline-flex; padding: 2px; gap: 2px; border: 1px solid #cfc7bb; border-radius: 6px; background: #fff; }
+.seg button { font: 600 12px var(--font-ui); padding: 3px 11px; border: 0; border-radius: 4px; background: transparent; color: #6e655c; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--sel); color: var(--accent-ink); }
+.seg button:focus-visible, .ib:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.escritorio { padding: 36px 16px 280px; display: flex; justify-content: center; }
+
+/* la ventana de Cronos */
+.win { width: 980px; border: 1px solid var(--chrome-line); border-radius: 10px; background: var(--chrome); color: var(--chrome-muted); font-variant-numeric: tabular-nums; }
+.title { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 6px 0 10px; background: var(--chrome2); border-bottom: 1px solid var(--chrome-line); border-radius: 9px 9px 0 0; cursor: move; user-select: none; }
+.title img { width: 20px; height: 20px; display: block; border-radius: 4px; }
+.title .wm { font-weight: 700; letter-spacing: .02em; color: var(--chrome-ink); }
+.title .upd { font-size: 11.5px; color: var(--chrome-muted); margin-left: 6px; }
+.title .sp { flex: 1; }
+.ib { width: 28px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--chrome-muted); font-size: 14px; cursor: pointer; }
+.ib:hover { background: var(--chrome-line); color: var(--chrome-ink); }
+.ib[aria-pressed="true"] { color: var(--chrome-ink); background: var(--chrome-line); }
+.ib.x:hover { background: var(--danger); color: #fff; }
+
+.rows { background: var(--chrome); }
+.row { display: grid; grid-template-columns: 200px 236px 236px 1fr; column-gap: 24px; align-items: center; padding: 16px 16px; border-bottom: 1px solid var(--chrome-line); min-height: 84px; }
+.row:last-child { border-bottom: 0; }
+.row.esta { background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+.row:hover { background: color-mix(in srgb, var(--chrome-ink) 6%, transparent); }
+.row.esta:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+
+.cx { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cx__top { display: flex; align-items: center; gap: 8px; }
+.cx__label { color: var(--chrome-muted); }
+.cx__pct { min-width: 3.1ch; font-size: 18px; font-weight: 700; line-height: 1.1; color: var(--chrome-ink); }
+.cx__sub { font-size: 12px; color: var(--chrome-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cx__sub--out { color: var(--danger); }
+.cx__who { color: var(--chrome-ink); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cx__plan { color: var(--chrome-ink); font-weight: 600; }
+.cx__bar { position: relative; width: 110px; height: 8px; border-radius: 4px; background: var(--chrome-line); overflow: hidden; flex: none; }
+.cx__bar i { position: absolute; inset: 0 auto 0 0; background: var(--bar-ok); }
+.cx__bar b { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--chrome-ink); }
+.tier-low .cx__bar i { background: var(--bar-low); }
+.tier-warn .cx__bar i { background: var(--bar-warn); }
+.tier-danger .cx__bar i { background: var(--danger); }
+.cx.is-limit .cx__pct, .cx.is-limit .cx__sub { color: var(--danger); }
+.stale { color: var(--bar-warn); }
+.nodata { grid-column: 2 / 5; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; color: var(--bar-warn); background: color-mix(in srgb, var(--bar-warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--bar-warn) 40%, transparent); }
+
+.status { display: flex; align-items: center; gap: 12px; height: 24px; padding: 0 12px; background: var(--chrome2); border-top: 1px solid var(--chrome-line); border-radius: 0 0 9px 9px; font-size: 11px; color: var(--chrome-muted); white-space: nowrap; }
+.status b { color: var(--chrome-ink); font-weight: 600; }
+.status .sp { flex: 1; }
+.status i.d { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.status .m { display: inline-block; width: 2px; height: 10px; background: var(--chrome-ink); margin-right: 5px; vertical-align: -1px; }
+
+/* panel emergente: el mismo que el de RAM de Lion (.ram-tip) */
+.tip { display: none; position: absolute; z-index: 20; top: calc(100% + 8px); left: -6px; width: 340px; padding: 12px 14px; background: var(--chrome); color: var(--chrome-ink); border: 1px solid var(--chrome-line); border-radius: 8px; box-shadow: 0 10px 30px rgba(20, 14, 8, .45); font-size: 12.5px; white-space: normal; pointer-events: none; }
+.cx:hover > .tip, .cx.show-tip > .tip { display: block; }
+.tip__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.tip__big { font-size: 20px; font-weight: 700; }
+.tip__big small { margin-left: 4px; font-size: 12px; font-weight: 400; color: var(--chrome-muted); }
+.tip__txt { color: var(--chrome-muted); margin: 0 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--chrome-line); }
+.tip__verdict { margin-bottom: 12px; padding: 7px 10px; background: color-mix(in srgb, var(--accent) 10%, transparent); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; }
+.tip__verdict b { color: var(--accent); }
+.tip__verdict.danger { background: color-mix(in srgb, var(--danger) 14%, transparent); border-left-color: var(--danger); } .tip__verdict.danger b { color: #ff9a6e; }
+.tip__verdict.warn { background: color-mix(in srgb, var(--bar-warn) 12%, transparent); border-left-color: var(--bar-warn); } .tip__verdict.warn b { color: var(--bar-warn); }
+.tip__verdict.low { background: color-mix(in srgb, var(--bar-low) 12%, transparent); border-left-color: var(--bar-low); } .tip__verdict.low b { color: var(--bar-low); }
+.tip__cap { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--chrome-muted); margin-bottom: 4px; }
+.tip__row { display: grid; grid-template-columns: 82px 1fr 54px; align-items: center; gap: 8px; padding: 3px 0; }
+.tip__row .b { height: 6px; border-radius: 3px; background: var(--chrome-line); position: relative; }
+.tip__row .b i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--chrome-muted); }
+.tip__row span:last-child { text-align: right; }
+
+/* zona de cuentas CLARA (variante): la lista de Lion, con selección lima */
+.win[data-zona="clara"] .rows { background: var(--pane-bg); border-bottom: 0; }
+.win[data-zona="clara"] .row { border-bottom: 1px solid var(--group-bg); }
+.win[data-zona="clara"] .row.esta { background: var(--sel); box-shadow: none; }
+.win[data-zona="clara"] .row:hover { background: var(--pane-hover); }
+.win[data-zona="clara"] .row.esta:hover { background: var(--sel); }
+.win[data-zona="clara"] .cx__label, .win[data-zona="clara"] .cx__sub { color: var(--pane-muted); }
+.win[data-zona="clara"] .cx__pct, .win[data-zona="clara"] .cx__who, .win[data-zona="clara"] .cx__plan { color: var(--pane-ink); }
+.win[data-zona="clara"] .cx__bar { background: #ddd6cb; }
+.win[data-zona="clara"] .cx__bar b { background: var(--pane-ink); }
+.win[data-zona="clara"] .cx.is-limit .cx__pct, .win[data-zona="clara"] .cx__sub--out { color: var(--danger); }
+.win[data-zona="clara"] .stale { color: #8a5a00; }
+.win[data-zona="clara"] .nodata { color: #7a4f00; background: #fbf0d6; border-color: #e6cf94; }
+
+.nota { max-width: 980px; margin: 16px auto 0; font-size: 12px; line-height: 1.55; color: #6e655c; }
+.nota b { color: #29231e; }
+body.ver-origen [data-note] { outline: 1px dashed #8b6f00; outline-offset: 2px; position: relative; }
+body.ver-origen .row:first-child [data-note]::after, body.ver-origen .title [data-note]::after { content: attr(data-note); position: absolute; left: 0; top: -17px; z-index: 30; padding: 0 5px; font: 600 10px/15px var(--font-ui); color: #fff; background: #8b6f00; border-radius: 3px; white-space: nowrap; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="demo">
+  <b>Cronos · 06 estilo Lion, tema claro/oscuro</b>
+  <span>Theme <span class="seg" id="seg-zona"><button data-v="oscura" aria-pressed="true">Dark</button><button data-v="clara" aria-pressed="false">Light</button></span></span>
+  <span>State <span class="seg" id="seg-estado"><button data-v="ok" aria-pressed="true">All fine</button><button data-v="problemas" aria-pressed="false">With warnings</button></span></span>
+  <span>Origin <span class="seg" id="seg-origen"><button data-v="0" aria-pressed="true">Hide</button><button data-v="1" aria-pressed="false">Show</button></span></span>
+</div>
+
+<div class="escritorio">
+  <div>
+    <div class="win" id="win" data-zona="oscura">
+      <div class="title">
+        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAOoUlEQVR4nOVbC3RV1Zn+9j7n3Hvuzb158EhIMCRAAEEEB9dM7TDLhKL1QVnT0gZJUAams0ztsmpRW8dZTEytq9o1QzvitEiRqR3jgwBFK7MU6pDY0erMKAoSJCIShQYCedzkPs6955y9Z/3n3Ns8JCGB3AQ631p75d7cc/be/7//1/73vxmGierqal5fX8bLALSEmxguAuQHZsp6AGVl9aKmpkYCoDaSkKy0tFrFJQJ3rnJIi8PO9UB5+Valrm65nfp+2+IdM6UtrpQQRZAyExAYW3AiIswUrRkWPvj315cdGmjuw2UAq66WrKaGicq/qs1RNX21kLISEPNVRdc447iYIKSAZRk2Y+wAJHtBJqJbnvn9qtZqVPMaPCQBJofBAMlSL9xaunUN40qNpngLbWHCsuOAlMRVOdKKdr5IEsHAmKJwD1TFA9MyTgmIH9TWL/8Z/egyokYMgQHSIb58zlaPnst+oam+VaZlwBamRfLGGKN3LgrjdxZIKckASqFwVdVUP0wzut3AqdV1DXeGgWqOfkxg/d5n5eV1vLu7RZ0Qy3/RqwVuiCVCFhjjjJTtEoJ0BJRZupapJczwG3HgxjllB6M1NX3Vgfd+iYgnozEumrvZ6wncYCRCCcaYeqkRn9IHBmhGImR6tMBCDXZtTU2NIBr7PtfPYlZcW7vK58l+2jC7TeoAA4BsoDPEWBsCokACQgw8EQlp+rQszTC77qptWLGht3dgyUecv39T+sssC/4POVMn2tLEQCtPdMfjAlZCwFGOMYQUEorGoet8MKssGFPo4bCC6KynG9accleOSSe4KS2tVxoaFlkmnl2jaxl5RqLbItEfaOXjMYHpszJw09fz4dM5GHHfsY2jCLJ2jCFuCuzZeQqNH3TD51MGkgQuhGXpnsxMw5R3kFMoLa1XGxpg9ZGAimuff9ej6vMtyxDkUvr3QjRalkRmloZ/enIugpN9gCXGzicQrSpD/EwC91V9gNOn4tA0dlZJkBJCVTRm2ebRQCQ0e9M7VeTVoFJsT8HOraVbSyTjcy07TvZjANFnSCRsFE/zITjRA7stgc+zaXQhbAlvjoaSmX6c+DQGj0d1fGF/MAZui4RUuDo9lhGcC2Af2QJeX+/quYR1lab46G0yDoOuKem9pIVnrE/jvKeRtIxk69t3r8YZRHIu54RktqrokJwtoK+trROZWoYyNKAGEqw4Gd4OaEqIs6rC0HY6ASYlmJ8DFum/+5a0pWsKOAdTyEOMkIugTkm3beF6d+o7Sa9CRpjBEX+FHPZg9BOVjEFINpW+zwo3MbVnSyuDKeoH6oYG9+gKjh2N4uknmvGVygJ4k8RrGoc3QwFsIBo2EI+bUBTXMp+viZAp2m0BzaMiI0MHmeZE1Ha8EK2XCWD39pM43Bh2PMFg7jA1D5mkNT8w0/UC7o9n3yx8blJCwuvl+M22FjTsOQMPDWpLKArDg4/MROGVOTjR1ILbbvuZY0rcQZ34dFhITZZWjJj51JbbMf/aWWht6sTDf98EI2Y7K27GBUKdJnSfMmSB602rivOEP0OFYQjEYrajl9GIhV883ox/XO/DjAVT8eXr52HTpv/E+PEBWNY5zcpZoaoc7e0RrKi4BvP/chZkzMBTT3yKTz+JIhBUndUmCaG5DLbyg4Gft/WlAEShSZJhArKyNbz/Tggv1f6BvC6+c8+NKCqa4DxHllnTlGE1j8d1L3l5mVh77xLH3b1adxJvv9GO7HGaMyaNTZJ3vsQTLijGJ5FLNYoPgpkq6mr/gCP/cwYTp+WjqupL6OqKOZNkZICG0cjYdnZGsWZNKQqvmILPDrSh9t9OICOgOirXe+wLAb+w1/t1xhksUzqqEA91o3JNKebNm4LTbQkYJkc0zobUjATHmQ4TJSWT8LdVi2FHY9i8oRmxqOXo/UgmItSR68pVC39AwYcHw9j2VDNWrp2L791/Ex5e93MEghSmDi19xhWO7lAU9963AsFJ4/HrJxvx3v+GkJ2jwbZHdveljmhvAGwnVFbxYt0pXH1NDhYt+wLKSl4Bwu8ASgax6Rw9cEDEIH2Xg89fiGP7WrD1mRZHvUaaeEJa9vlOVMaAjT/9BLEOCyi4BYx7wBjpNwZvyWeQfwvMiIKNPznqqBWpVzrA09EpqQLtzI59HMNzGz8Em3Al7MxFgBWm2G2QNxXAisAOLATP+3Ns33IYhw5G4M8YcJd3weBp6ZVUwXZ3jbt2tuL9vSeglCyH4DlwY7eBVtOCYBlQplfg8NunseP5FmSmSfRT4GnrORn/aaqCTT9tQrhrAljBVyGtqJtU6A+mQFoRIG8J4lYhnlx/qCexlUbwdHZOO0avznHieAK/2tAINnkJhHcaIIx+UkABfxxSKwAv+qqjNkePxODzp0/0U+Bp7T2lCtka9uxqwdu/jUGZUQFhmn0zSIxDmAb49Fuw/03g5e3HkZnlcTxKusHTPkJyA6X7NGz+lw/QGV4ANvFqCDOSHJ47asFy5iIqFmLT+gNQVOU8tk8XMwMk4PFwnGlNYMuGZrDCCjj7WkaZDAprBVhxJX61sQXHP41C1xVHfUYDfHSGSXkFD37328+w5+Uc8OKbYcUNWPEY+JTr8V97J2P3S58gM9ubVqvfHypGGZYF+Dw2frxxHK7J1ZCZIbHzxXFYcp1wCB/t/CofrYFoR0iJi8U3FmDa7DjW//NrUDUdHt2HJx5/HePyOrF02RR0tCecZ/+kGMAYYJoC2Tkq7lg7FY89uguxWMKxCy6xEj/8wUtYfUch8gt0N93F/oQYwDlDd7eJux6YjYONH2Hnr99FdrbfySHYtkBWlg979jTijTf3Y+26Oc62N90B0B/nhjSDVrgrZOK6G3KxYFEWqte9CN2rOCvck9SQCAY8qKn+DWb9mRdLl+UjFKKkKru0GcAYkEgIjJug4Y4H52Drltfx/ntHoWg+hMMSqkppLSASpZS9F0c+OoHNG17D391/OSZf5nVyjunaBY4SA5iTvf32vSWQMozHHn0VCduPwjwTT/0whPlzEpheZOHpH3WipDABS2Zg/U9eQ6jjDL7zwExYpkh7OMTTLvo3TcDV11+Gdd9/BZGuM3hkrYGdG9rw1zdH4WGuH75xsYEdj7fjx9+LQpUhfH/tLsz+4iQsXZaH7jSrAk9Hp7TZI/EtuEzHN++dhaP7P0bQ3I3XnzXwzcpu+DTADvUMbXcxhxm3fqMbDc8amOLfi8a3GnHrXTMxtcSPWNRNvV86DACDbQl8654i6Fk+TEo8h3V3tiJ3AmB3uueKlFJPgT6TqNudHDlB4ME7O1HMa6F6FXx77dSkwbxEEiKK6or+V76Wi3mLpkCceBN++y2IeBAyLhxiz+bhWIoRpoAwAvCLfRDH6zHjC5Px9YpJ6ApZaVEFPqKdceaI67QZGaioKoYIR8BObwUEh3OGOYT5OyfBtEmSGljbNoiuDixbU4wr5gURjYy8KvCR7CwlplV3T4E3Owto3QMWawIU3xCywX16AhQdzDgGtP4HVF8AVfdMgeYZ/PBzTBjAWG/Rt7BsRT5mfTEXou0kePtOgOtuamhY2xxSejIUGeAdL8Nub0bRVROxYlUBurvcw5HeY48JA3hSFFNb13CXhdlzg/jG6skQUQ2MiI+3AJwcHR2OEhPkEJtIvkPn321Q2raDypuWVuZjwV9ko6uTQmV3bBK6C1ELfj4v0eB0GkzD0rE01QbQ4ei3vlsM1e8HupvAQg2ANs7dcTMvwDzDbPSOCmjjga7fA+EDYKoPt99dhIl5Hscg0th0SBqJOOU+F5YPkEMsL08ZuutvzsXSlZPhJXcmAI+XIzhOAyJxcG82MO0RJ9M7IpAUEutALI78Ij/Wb7oScUM4y5eQwKt1Ldi185RbIzAEG9GbVpWqJOgDAwufs3w8WR9YWOxD1X3TAI31LZExUyUyAUDJGsF7C9QpeQYb0gQC2RoCPNm9wrD6u1PRdCiMI4cj8FI6bYCYIfVfJUlrC5XI1KM++StvppLzwXhAsT0VO+RO8kIqDDJsu/U6vRjk9pXS4ZFEj+GTvbLFwrDBgxomFejOoaw+SGmSe0gvIaRspu+HAzMlLytL+ieFvU/19sn6wEGXjjhM4W5qK5tq5KJ6Gka49fTde0ynBmmokSKTCpX7M7B99DU397RUqYCYNqMl1z700Ud7Lz+kKd4rLNtJyXxOgWkQj8bx2TEDBtXl5HqBBOniGNQMJ9WOqwx2l+mcQ1KcMIj4C5V7mGknmjv8rfvpf3V1y4UjV6Wle1UqlV1Z+twDXi3zR0aia8BSWccIxmwnMltySwH8XlcUSLxGE+65AYNhCezecRLv/ndo0JMkKaWle4Jq3Aw/Vtuw4oEUzSr92NBQ5lQxCYjNcbP7foVr2UJSDezn3SQNQOVoB/d348C+D8GdesAxuEKRHJPKZWhRdN9gUaKUnCs8bkajlpD/Sm+WNdSLhh43yCSVjT5Xt/xMZemz/6Cpvp8bZpdJdZhn7w7O8bf7+QIKAS8Ujv67gw9aLi9h6VpAi8Y7Hn7hdys/I1pr+pbLu0jV0VeWPr/Dp2V+LZYImYyxAe8MXAqQUpq6J6gZifBrMxYd+nJj4xWMdD9l6Fm/x1l19UPs4zen+5DQX/VoGQtdSXDCuYv1ntAAcGTT0rWglrBi78UNubjurfIO4CHW+94Q7/sSkzU1wDN7VkXojo1pRXbSnRvGFEZGhCwpLnLQHGmudM1J17I00zJ2hyPR6+reWt5e3Y94wllXtfcVs5Vl2+5WgHWqqo8nH2qLhFNaPhZ275yguknuYarihWnFQ1Lajz3TsPxR4sswrs2lIBlxjF4qv+aXk72+jNuZxHIAl1PJ+R/vC40xF3oHQpZw7jQeYcC2uLSefKGh4ljPFdphXZzsQe8LRtWle9VmpX2eLcVVUspiSJE51jrh6jAPM7BmReXvndSO73/llbvj/ef+/+7ydLVzSfLcYMPsm5WXb+VzWidedOpPaMw9Levqyt2qiyHi/wCkPeRu9U3+TwAAAABJRU5ErkJggg==" alt="">
+        <span class="wm">Cronos</span>
+        <span class="upd">updated 11:35</span>
+        <span class="sp"></span>
+        <button class="ib" id="b-tema" title="Dark / light theme" data-from="new" data-note="New · theme toggle">☀</button>
+        <button class="ib" id="b-pin" aria-pressed="true" title="Always on top">📌</button>
+        <button class="ib" title="Refresh now">⟳</button>
+        <button class="ib x" title="Close">✕</button>
+      </div>
+      <div class="rows" id="rows"></div>
+      <div class="status" id="status"></div>
+    </div>
+    <p class="nota">Sample data, computed at 11:35 on a Monday. <b>White mark</b> = even pace (share of the window already gone), exactly as in Lion. <b>Bar colour</b> = how far the used % is ahead of that mark: green up to 5 points, amber up to 15, red beyond, <b>blue</b> if you are more than 25 points under it (spare quota, new). Rows are taller; the <b>theme</b> button (title bar) switches dark / light, dark by default. The <b>lime row</b> is the account this PC's Claude Code is signed in with (new). Hover a block for the detail panel. «Origin · Show» marks what is new.</p>
+  </div>
+</div>
+
+<script>
+const AHORA = new Date(2026, 10, 2, 11, 35);              // lunes 2-nov-2026, 11:35
+const SES = 300, SEM = 10080;
+const fmt = m => { const d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), n = Math.round(m % 60); return d ? `${d} d ${h} h` : h ? `${h} h ${n} min` : `${n} min`; };
+const DIAS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const clock = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+const dayClock = d => `${DIAS[d.getDay()]} ${clock(d)}`;
+const en = min => new Date(AHORA.getTime() + min * 60000);
+
+const base = [
+  { nombre: 'Ventas Funidelia', email: 'ventas@funidelia.es', plan: 'Team · Max 5x', esta: true, ses: { pct: 16, restan: 105 }, sem: { pct: 15, restan: 7465 }, extra: null },
+  { nombre: 'Ventas Echocontrol', email: 'ventas@echocontrol.app', plan: 'Max 5x', ses: { pct: 62, restan: 195 }, sem: { pct: 41, restan: 2725 }, extra: { usado: 3.5, limite: 50, moneda: 'USD' } },
+  { nombre: 'Javier', email: 'javier@thestromboliproject.com', plan: 'Pro', ses: { pct: 87, restan: 80 }, sem: { pct: 70, restan: 6145 }, extra: null },
+  { nombre: 'Soporte', email: 'soporte@echocontrol.app', plan: 'Max 20x', ses: { pct: 3, restan: 295 }, sem: { pct: 8, restan: 8545 }, extra: null },
+];
+const problemas = base.map((c, i) => i === 1 ? { ...c, aviso: 'rate limited (429), retrying later', datoDe: '11:21' }
+  : i === 2 ? { ...c, error: 'No data — token expired; sign in again' }
+  : i === 3 ? { ...c, nombre: 'Account 4', email: null, plan: '', error: 'No data — not signed in on this folder' } : c);
+
+/* igual que ContextBar.ts de Lion: ritmo = parte de la ventana ya gastada; tramos por puntos de adelanto */
+const pace = (v, span) => Math.min(100, Math.max(0, (1 - v.restan / span) * 100));
+const tier = (pct, p) => { if (pct >= 100) return 'danger'; const a = pct - p; return a > 15 ? 'danger' : a > 5 ? 'warn' : a < -25 ? 'low' : 'ok'; };
+const runsOut = (v, span) => { if (span !== SEM || v.pct <= 0 || v.pct >= 100) return null; const gone = span - v.restan; if (gone < 1440) return null; const at = (100 - v.pct) / v.pct * gone; return at < v.restan ? at : null; };
+const TXT = { ok: ['On pace', ''], warn: ['Slightly ahead of an even pace', 'warn'], danger: ['Well ahead of an even pace', 'danger'], low: ['Well under an even pace — spare quota', 'low'] };
+
+function block(label, v, span, id, forzar, dato) {
+  const p = pace(v, span), t = tier(v.pct, p), out = runsOut(v, span);
+  const resets = `resets in ${fmt(v.restan)}, ${span === SES ? 'at ' + clock(en(v.restan)) : dayClock(en(v.restan))}`;
+  const sub = out !== null ? `<span class="cx__sub cx__sub--out">at this pace, out ${dayClock(en(out))}</span>` : `<span class="cx__sub">${resets}</span>`;
+  const diff = Math.round(v.pct - p);
+  const lead = diff === 0 ? 'right on it' : diff > 0 ? `${diff} points ahead of it` : `${-diff} points under it`;
+  const [titulo, cls] = TXT[t];
+  return `<div class="cx tier-${t}${v.pct >= 100 ? ' is-limit' : ''}${forzar ? ' show-tip' : ''}" data-id="${id}">
+    <div class="cx__top"><span class="cx__label">${label}</span><span class="cx__pct">${Math.round(v.pct)}%</span>
+      <span class="cx__bar"><i style="width:${v.pct}%"></i><b data-from="lion" data-note="From Lion · even-pace mark" style="left:${p.toFixed(1)}%"></b></span></div>${sub}
+    <div class="tip"><div class="tip__head"><span class="tip__big">${Math.round(v.pct)}%<small>of the ${span === SES ? '5 h session' : 'week'}</small></span></div>
+      <p class="tip__txt">An even pace to reach 100% at the reset would be at ${Math.round(p)}% by now: you are ${lead}.${out !== null ? ` At this pace it runs out ${dayClock(en(out))}, before it resets ${dayClock(en(v.restan))}.` : ''}${dato ? ` <span class="stale">Data from ${dato.datoDe}: ${dato.aviso}.</span>` : ''}</p>
+      <div class="tip__verdict ${cls}"><b>${titulo}</b><br>${resets}</div>
+      <div class="tip__cap">This window</div>
+      <div class="tip__row"><span>Used</span><span class="b"><i style="width:${v.pct}%"></i></span><span>${Math.round(v.pct)}%</span></div>
+      <div class="tip__row"><span>Even pace</span><span class="b"><i style="width:${p}%"></i></span><span>${Math.round(p)}%</span></div></div></div>`;
+}
+const TIERS = { ok: 0, low: 0, warn: 0, danger: 0 };
+function pintar(estado, tip) {
+  const datos = estado === 'ok' ? base : problemas;
+  Object.keys(TIERS).forEach(k => TIERS[k] = 0);
+  document.getElementById('rows').innerHTML = datos.map((c, i) => {
+    const quien = `<div class="cx"><span class="cx__who">${c.nombre}${c.aviso ? ` <span class="stale" title="Data from ${c.datoDe} — ${c.aviso}">⚠</span>` : ''}</span><span class="cx__sub">${c.email || 'email unknown'}</span></div>`;
+    const marca = c.esta ? ' esta' : '';
+    if (c.error) return `<div class="row${marca}">${quien}<div class="nodata">⚠ ${c.error}</div></div>`;
+    [[c.ses, SES], [c.sem, SEM]].forEach(([v, s]) => TIERS[tier(v.pct, pace(v, s))]++);
+    const extra = c.extra ? `<span class="cx__sub">Extra credits ${c.extra.usado.toFixed(2)} / ${c.extra.limite.toFixed(2)} ${c.extra.moneda}</span>` : '<span class="cx__sub">Extra credits —</span>';
+    return `<div class="row${marca}" ${c.esta ? 'data-from="new" data-note="New · account this PC uses"' : ''}>${quien}${block('Session', c.ses, SES, i + '-ses', tip === i + '-ses', c.aviso ? c : null)}${block('Week', c.sem, SEM, i + '-sem', tip === i + '-sem', c.aviso ? c : null)}
+      <div class="cx"><span class="cx__plan">${c.plan || '—'}</span>${extra}</div></div>`;
+  }).join('');
+  const con = datos.filter(c => !c.error).length;
+  document.getElementById('status').innerHTML = `<b>${datos.length} accounts</b><span>${con} with data</span>` +
+    (TIERS.danger ? `<span style="color:#ff9a6e">${TIERS.danger} over pace</span>` : '') + (datos.some(c => c.aviso) ? `<span style="color:var(--bar-warn)">${datos.filter(c => c.aviso).length} stale</span>` : '') +
+    `<span class="sp"></span><span><i class="d" style="background:var(--bar-low)"></i>spare</span><span><i class="d" style="background:var(--bar-ok)"></i>on pace</span><span><i class="d" style="background:var(--bar-warn)"></i>ahead</span><span><i class="d" style="background:var(--danger)"></i>over</span><span><i class="m"></i>even pace</span><span>refreshes every 60 s</span>`;
+}
+function marcar(id, v) { document.querySelectorAll(`#${id} button`).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v)); }
+const q = new URLSearchParams(location.search);
+let estado = q.get('estado') === 'problemas' ? 'problemas' : 'ok', tip = q.get('tip');
+function zona(z) { document.getElementById('win').dataset.zona = z; marcar('seg-zona', z); document.getElementById('b-tema').textContent = z === 'oscura' ? '☀' : '🌙'; }
+document.getElementById('b-tema').onclick = () => zona(document.getElementById('win').dataset.zona === 'oscura' ? 'clara' : 'oscura');
+document.querySelectorAll('#seg-zona button').forEach(b => b.onclick = () => zona(b.dataset.v));
+document.querySelectorAll('#seg-estado button').forEach(b => b.onclick = () => { estado = b.dataset.v; marcar('seg-estado', estado); pintar(estado, null); });
+document.querySelectorAll('#seg-origen button').forEach(b => b.onclick = () => { marcar('seg-origen', b.dataset.v); document.body.classList.toggle('ver-origen', b.dataset.v === '1'); });
+document.getElementById('b-pin').onclick = e => e.currentTarget.setAttribute('aria-pressed', e.currentTarget.getAttribute('aria-pressed') !== 'true');
+if (q.get('zona')) zona(q.get('zona'));
+marcar('seg-estado', estado); pintar(estado, tip);
+if (q.get('origen') === '1') { marcar('seg-origen', '1'); document.body.classList.add('ver-origen'); }
+</script>
+</body>
+</html>
