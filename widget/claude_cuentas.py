@@ -29,6 +29,9 @@ except ImportError:  # fuera de Windows no hay arranque con la sesión
 AQUI = os.path.dirname(os.path.abspath(__file__))
 RUTA_CUENTAS = os.path.join(AQUI, 'cuentas.json')
 RUTA_ICONO = os.path.join(AQUI, 'cronos-20.png')
+RUTA_ICO = os.path.join(AQUI, 'cronos.ico')
+APP_ID = 'Funidelia.Cronos'  # identidad propia en Windows: el botón de la barra usa el icono de Cronos, no el de Python
+EXSTYLE, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW = -20, 0x00040000, 0x00000080
 RUTA_VENTANA = os.path.join(CARPETA_ESTADO, 'ventana.json')
 
 REFRESCO_MS = 60_000
@@ -162,6 +165,10 @@ class Widget:
 
         self.raiz = tk.Tk()
         self.raiz.title('Cronos')
+        try:
+            self.raiz.iconbitmap(default=RUTA_ICO)
+        except tk.TclError:
+            pass
         self.raiz.overrideredirect(True)
         self.encima = tk.BooleanVar(value=pos.get('encima', True))
         self.raiz.attributes('-topmost', self.encima.get())
@@ -174,12 +181,33 @@ class Widget:
         self.marco.pack()
         self._montar()
         self._esquinas()
+        if not captura:
+            self.raiz.after(100, self._boton_barra_tareas)
 
         self.refrescar()
         self.raiz.after(200, self._mirar_cola)
         if not captura:
             self.raiz.after(REFRESCO_MS, self._refresco_periodico)
             self.raiz.after(TICK_MS, self._tick)
+
+    def _boton_barra_tareas(self):
+        """Botón propio en la barra de tareas (S-1076): una ventana sin marco no lo tiene.
+        Se le quita el estilo de ventana de herramienta y se le da el de ventana de aplicación; Windows
+        solo lo aplica al volver a mostrarla, de ahí el ocultar y mostrar."""
+        try:
+            import ctypes
+            u32 = ctypes.windll.user32
+            u32.GetParent.restype = ctypes.c_void_p
+            u32.GetParent.argtypes = [ctypes.c_void_p]
+            u32.GetWindowLongW.argtypes = [ctypes.c_void_p, ctypes.c_int]
+            u32.SetWindowLongW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_long]
+            hwnd = u32.GetParent(self.raiz.winfo_id()) or self.raiz.winfo_id()
+            estilo = u32.GetWindowLongW(hwnd, EXSTYLE)
+            u32.SetWindowLongW(hwnd, EXSTYLE, (estilo & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW)
+            self.raiz.withdraw()
+            self.raiz.after(30, self.raiz.deiconify)
+        except Exception:  # noqa: BLE001 - sin botón en la barra, pero el widget funciona igual
+            pass
 
     # --- estructura -------------------------------------------------------------------------
     @property
@@ -717,6 +745,11 @@ def main():
     try:  # nitidez en pantallas escaladas y coordenadas reales para la captura
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:  # noqa: BLE001 - fuera de Windows no aplica
+        pass
+    try:  # antes de crear la ventana: así el botón de la barra de tareas es de Cronos
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
     except Exception:  # noqa: BLE001 - fuera de Windows no aplica
         pass
     Widget(a.cuentas, a.captura, a.tema, a.tip).correr()
