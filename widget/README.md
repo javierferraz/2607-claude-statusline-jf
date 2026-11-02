@@ -30,6 +30,10 @@ Copia la estética de Roaring Lion (su `DESIGN.md`, paleta «Piedra»); la inter
 - Cada cuenta vive en su propia carpeta de configuración de Claude Code (`CLAUDE_CONFIG_DIR`).
   El widget lee `<carpeta>/.credentials.json` y consulta el servicio de uso de Anthropic
   (`/api/oauth/usage`) y el de perfil (`/api/oauth/profile`).
+- **Una carpeta propia por cuenta y `~/.claude` aparte.** `~/.claude` es la que usa tu Claude Code y cambia
+  cuando haces otro login (también desde «Switch account» de Lion): si una cuenta vive ahí, desaparece al
+  cambiar. Por eso cada cuenta tiene su carpeta (`~/.claude-cuenta1`…) y `~/.claude` va al final como «This PC».
+  Si una cuenta está en dos carpetas, sale una sola vez, con los datos de la que los tiene y con el punto lima.
 - Las cuentas con `"renovar": true` renuevan su token cuando caduca (mismo método que Claude Code,
   no documentado). La cuenta de `~/.claude` va con `false`: la renueva Claude Code al usarla.
 - En las carpetas con `"renovar": true` no uses a la vez Claude Code: si los dos renuevan el token al mismo

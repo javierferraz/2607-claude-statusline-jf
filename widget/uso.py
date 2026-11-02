@@ -292,6 +292,29 @@ def cargar_cuentas(ruta):
     return datos
 
 
+def _sin_duplicados(res):
+    """La misma cuenta en dos carpetas (p. ej. ~/.claude y una propia) sale una sola vez, en el sitio de la
+    primera: la fila que tiene datos, con la marca de «este PC» si alguna de las dos la tiene."""
+    def con_datos(r):
+        return r['estado'] == 'ok' and bool(r['sesion'] or r['semana'])
+    salida, vistos = [], {}
+    for r in res:
+        clave = (r['email'] or '').lower()
+        if not clave:
+            salida.append(r)
+        elif clave not in vistos:
+            vistos[clave] = len(salida)
+            salida.append(r)
+        else:
+            i = vistos[clave]
+            previa = salida[i]
+            esta = previa['esta'] or r['esta']
+            if con_datos(r) and not con_datos(previa):
+                salida[i] = previa = r
+            previa['esta'] = esta
+    return salida
+
+
 def consultar_todas(cuentas, http=_http, forzar=False):
     cache = cargar_cache()
     res = []
@@ -304,6 +327,7 @@ def consultar_todas(cuentas, http=_http, forzar=False):
                         'plan': '', 'sesion': None, 'semana': None, 'mensual': None, 'estado': 'error',
                         'error': f'error reading the account ({type(e).__name__})', 'dato_de': None})
     guardar_cache(cache)
+    res = _sin_duplicados(res)
     # Nombre para mostrar a partir del email; el alias de cuentas.json solo vale mientras no se conoce.
     for r, n in zip(res, nombres_amistosos([r['email'] for r in res])):
         r['nombre'] = n or r['alias']

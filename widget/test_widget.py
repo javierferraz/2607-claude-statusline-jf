@@ -296,6 +296,29 @@ class Cuentas(unittest.TestCase):
         self.assertEqual(r[1]['sesion']['pct'], 10)
         self.assertEqual((r[0]['nombre'], r[1]['nombre']), ('Raro', 'I'))  # alias mientras no hay email; 'i@x.es' -> 'I'
 
+    def test_misma_cuenta_en_dos_carpetas_sale_una_vez(self):
+        """~/.claude con el mismo login que otra carpeta: una fila, con datos y con la marca de este PC."""
+        a = crear_carpeta(self.base, 'a', 'tok-a', 'gmail@x.es')   # la carpeta del PC (sin renovar, token caducado)
+        b = crear_carpeta(self.base, 'b', 'tok-b', 'gmail@x.es')   # la propia de Cronos (con renovar y válida)
+        c = crear_carpeta(self.base, 'c', 'tok-c', 'otra@x.es')
+        ok = lambda url, token=None, cuerpo=None: USO_REAL  # noqa: E731
+        orig, uso.RUTA_CACHE = uso.RUTA_CACHE, os.path.join(self.base, 'cache.json')
+        orig_esta, uso._es_este_pc = uso._es_este_pc, lambda carpeta: carpeta == a
+        try:
+            with open(os.path.join(a, '.credentials.json'), encoding='utf-8') as f:
+                cred = json.load(f)
+            cred['claudeAiOauth']['expiresAt'] = int((time.time() - 60) * 1000)
+            with open(os.path.join(a, '.credentials.json'), 'w', encoding='utf-8') as f:
+                json.dump(cred, f)
+            r = uso.consultar_todas([{'alias': 'PC', 'dir': a}, {'alias': 'B', 'dir': b, 'renovar': True},
+                                     {'alias': 'C', 'dir': c}], ok)
+        finally:
+            uso.RUTA_CACHE, uso._es_este_pc = orig, orig_esta
+        self.assertEqual([x['email'] for x in r], ['gmail@x.es', 'otra@x.es'])
+        self.assertEqual(r[0]['estado'], 'ok')       # se queda la fila con datos
+        self.assertTrue(r[0]['esta'])                 # y hereda la marca de «este PC»
+        self.assertEqual(r[0]['dir'], b)
+
     def test_cuentas_json(self):
         ruta = os.path.join(self.base, 'cuentas.json')
         self.assertEqual(uso.cargar_cuentas(ruta)[0]['dir'], '~/.claude')  # sin fichero
