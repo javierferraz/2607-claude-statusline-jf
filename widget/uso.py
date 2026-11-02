@@ -129,6 +129,11 @@ def renovar_token(ruta_cred, http=_http):
     return oauth
 
 
+def _es_este_pc(carpeta):
+    """True si es la carpeta de configuración de Claude Code de este PC (~/.claude)."""
+    return os.path.normcase(carpeta) == os.path.normcase(expandir('~/.claude'))
+
+
 def _identidad_local(carpeta):
     """Email y organización de <carpeta>/.claude.json (o ~/.claude.json para la carpeta por defecto)."""
     candidatos = [os.path.join(carpeta, '.claude.json')]
@@ -186,7 +191,7 @@ def consultar_cuenta(cuenta, cache, http=_http, ahora=None, forzar=False):
     carpeta = expandir(cuenta.get('dir') or '~/.claude')
     ruta_cred = os.path.join(carpeta, '.credentials.json')
     c = cache.setdefault(carpeta, {})
-    res = {'alias': alias, 'nombre': alias, 'dir': carpeta, 'email': None, 'org': None, 'plan': '',
+    res = {'alias': alias, 'nombre': alias, 'dir': carpeta, 'esta': _es_este_pc(carpeta), 'email': None, 'org': None, 'plan': '',
            'sesion': None, 'semana': None, 'mensual': None,
            'estado': 'ok', 'error': None, 'dato_de': None}
 
@@ -195,7 +200,7 @@ def consultar_cuenta(cuenta, cache, http=_http, ahora=None, forzar=False):
 
     oauth = _objeto(_objeto(_leer_json(ruta_cred)).get('claudeAiOauth'))
     if not oauth.get('accessToken'):
-        res['estado'], res['error'] = 'sin_credenciales', 'sin sesión iniciada en esta carpeta'
+        res['estado'], res['error'] = 'sin_credenciales', 'not signed in on this folder'
         return res
     res['plan'] = etiqueta_plan(oauth.get('subscriptionType'), oauth.get('rateLimitTier'))
 
@@ -212,13 +217,13 @@ def consultar_cuenta(cuenta, cache, http=_http, ahora=None, forzar=False):
             except Exception as e:  # noqa: BLE001
                 c['renovar_espera_hasta'] = ahora + ESPERA_RENOVAR_S
                 if isinstance(e, ErrorHttp) and e.status in (400, 401):
-                    res['estado'], res['error'] = 'token_caducado', f'no se pudo renovar el token ({e}); vuelve a iniciar sesión'
+                    res['estado'], res['error'] = 'token_caducado', f'could not renew the token ({e}); sign in again'
                 elif caduca <= ahora:
-                    res['estado'], res['error'] = 'token_caducado', f'no se pudo renovar el token ({e}); se reintentará'
+                    res['estado'], res['error'] = 'token_caducado', f'could not renew the token ({e}); will retry'
         if res['estado'] == 'ok' and not renovado and caduca <= ahora:
             res['estado'] = 'token_caducado'
-            res['error'] = ('token caducado; se reintentará la renovación' if cuenta.get('renovar')
-                            else 'token caducado; se renovará al usar Claude Code con esta cuenta')
+            res['error'] = ('token expired; renewal will be retried' if cuenta.get('renovar')
+                            else 'token expired; it renews when Claude Code uses this account')
 
     token = oauth.get('accessToken')
     if res['estado'] == 'ok':
@@ -247,7 +252,7 @@ def consultar_cuenta(cuenta, cache, http=_http, ahora=None, forzar=False):
                         c['uso_firma'], c['uso_cambio_ts'] = _firma(uso), ahora
                     c['uso'], c['uso_ts'], c['espera_hasta'] = uso, ahora, 0
                 else:
-                    res['error'] = 'la API no devolvió datos de uso'
+                    res['error'] = 'the API returned no usage data'
             except ErrorHttp as e:
                 if e.status == 429:
                     try:
@@ -255,13 +260,13 @@ def consultar_cuenta(cuenta, cache, http=_http, ahora=None, forzar=False):
                     except (TypeError, ValueError):
                         espera = 0
                     c['espera_hasta'] = ahora + (espera if espera > 0 else ESPERA_429_S)
-                    res['error'] = 'límite de consultas de la API (429); reintento más tarde'
+                    res['error'] = 'rate limited by the API (429); retrying later'
                 elif e.status == 401:
-                    res['estado'], res['error'] = 'token_caducado', 'token rechazado (401); vuelve a iniciar sesión'
+                    res['estado'], res['error'] = 'token_caducado', 'token rejected (401); sign in again'
                 else:
-                    res['error'] = f'error de la API ({e.status})'
+                    res['error'] = f'API error ({e.status})'
             except Exception as e:  # noqa: BLE001 - red caída, timeout...
-                res['error'] = f'sin conexión con la API ({type(e).__name__})'
+                res['error'] = f'no connection to the API ({type(e).__name__})'
 
     uso = c.get('uso')
     if uso and res['estado'] == 'ok':
@@ -271,7 +276,7 @@ def consultar_cuenta(cuenta, cache, http=_http, ahora=None, forzar=False):
         if ahora - c.get('uso_ts', ahora) >= _ttl_uso(c, ahora) * 2:
             res['dato_de'] = c.get('uso_ts')
     elif res['estado'] == 'ok' and not res['error']:
-        res['error'] = 'sin datos todavía'
+        res['error'] = 'no data yet'
     return res
 
 
@@ -283,7 +288,7 @@ def cargar_cuentas(ruta):
     if isinstance(datos, dict):
         datos = datos.get('cuentas')
     if not isinstance(datos, list) or not datos or not all(isinstance(c, dict) for c in datos):
-        raise ValueError(f'{os.path.basename(ruta)} mal escrito: revisa el JSON')
+        raise ValueError(f'{os.path.basename(ruta)} is malformed: check the JSON')
     return datos
 
 
@@ -295,9 +300,9 @@ def consultar_todas(cuentas, http=_http, forzar=False):
             res.append(consultar_cuenta(c, cache, http, forzar=forzar))
         except Exception as e:  # noqa: BLE001 - un fallo inesperado solo afecta a su cuenta
             res.append({'alias': c.get('alias') or c.get('dir'), 'nombre': c.get('alias') or c.get('dir'),
-                        'dir': c.get('dir'), 'email': None, 'org': None,
+                        'dir': c.get('dir'), 'esta': False, 'email': None, 'org': None,
                         'plan': '', 'sesion': None, 'semana': None, 'mensual': None, 'estado': 'error',
-                        'error': f'error leyendo la cuenta ({type(e).__name__})', 'dato_de': None})
+                        'error': f'error reading the account ({type(e).__name__})', 'dato_de': None})
     guardar_cache(cache)
     # Nombre para mostrar a partir del email; el alias de cuentas.json solo vale mientras no se conoce.
     for r, n in zip(res, nombres_amistosos([r['email'] for r in res])):

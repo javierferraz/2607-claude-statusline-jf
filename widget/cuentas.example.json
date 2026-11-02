@@ -1,8 +1,8 @@
 {
   "cuentas": [
-    {"alias": "Cuenta 1", "dir": "~/.claude", "renovar": false},
-    {"alias": "Cuenta 2", "dir": "~/.claude-cuenta2", "renovar": true},
-    {"alias": "Cuenta 3", "dir": "~/.claude-cuenta3", "renovar": true},
-    {"alias": "Cuenta 4", "dir": "~/.claude-cuenta4", "renovar": true}
+    {"alias": "Account 1", "dir": "~/.claude", "renovar": false},
+    {"alias": "Account 2", "dir": "~/.claude-cuenta2", "renovar": true},
+    {"alias": "Account 3", "dir": "~/.claude-cuenta3", "renovar": true},
+    {"alias": "Account 4", "dir": "~/.claude-cuenta4", "renovar": true}
   ]
 }

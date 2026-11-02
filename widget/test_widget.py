@@ -13,7 +13,8 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import uso  # noqa: E402
-from formato import cuenta_atras, etiqueta_plan, nombres_amistosos, texto_mensual, texto_reset_semana, texto_reset_sesion  # noqa: E402
+from formato import (SEMANA_MIN, SESION_MIN, cuenta_atras, dia_hora, etiqueta_plan, nombres_amistosos, ritmo,
+                     se_agota, texto_extra, tramo, texto_reset_semana, texto_reset_sesion)  # noqa: E402
 
 USO_REAL = {  # forma de la respuesta real de /api/oauth/usage (2026-11-02), recortada
     'five_hour': {'utilization': 10.0, 'resets_at': '2026-11-02T12:20:00.717029+00:00'},
@@ -53,13 +54,13 @@ class Formato(unittest.TestCase):
     def test_textos_reset_como_la_captura(self):
         ahora = datetime(2026, 11, 2, 11, 6)
         self.assertEqual(texto_reset_sesion(datetime(2026, 11, 2, 13, 20).astimezone().isoformat(), ahora),
-                         'reset en 2 h 14 min, a las 13:20')
+                         'resets in 2 h 14 min, at 13:20')
         self.assertEqual(texto_reset_semana(datetime(2026, 11, 7, 16, 0).astimezone().isoformat(), ahora),
-                         'reset en 5 d 4 h, sáb 16:00')
+                         'resets in 5 d 4 h, Sat 16:00')
 
     def test_epoch_y_utc(self):
         d = datetime(2026, 11, 2, 13, 20)
-        self.assertEqual(texto_reset_sesion(d.timestamp(), d - timedelta(minutes=5)), 'reset en 5 min, a las 13:20')
+        self.assertEqual(texto_reset_sesion(d.timestamp(), d - timedelta(minutes=5)), 'resets in 5 min, at 13:20')
         self.assertTrue(texto_reset_sesion('2026-11-02T12:20:00+00:00').endswith(
             datetime.fromisoformat('2026-11-02T12:20:00+00:00').astimezone().strftime('%H:%M')))
 
@@ -75,10 +76,45 @@ class Formato(unittest.TestCase):
     def test_plan_y_mensual(self):
         self.assertEqual(etiqueta_plan('team', 'default_claude_max_5x'), 'Team · Max 5x')
         self.assertEqual(etiqueta_plan('pro', None), 'Pro')
-        self.assertEqual(texto_mensual(None), 'no disponible')
-        self.assertEqual(texto_mensual({'activo': False}), 'no disponible (créditos extra desactivados)')
-        self.assertEqual(texto_mensual({'activo': True, 'usado': 3.5, 'limite': 50.0, 'moneda': 'USD'}),
-                         '3.50 / 50.00 USD')
+        self.assertEqual(texto_extra(None), 'Extra credits —')
+        self.assertEqual(texto_extra({'activo': False}), 'Extra credits —')
+        self.assertEqual(texto_extra({'activo': True, 'usado': 3.5, 'limite': 50.0, 'moneda': 'USD'}),
+                         'Extra credits 3.50 / 50.00 USD')
+
+
+class Ritmo(unittest.TestCase):
+    """Raya de ritmo uniforme y color por tramos: la regla de Roaring Lion (S-772, S-792)."""
+    AHORA = datetime(2026, 11, 2, 11, 35)
+
+    def iso(self, dt):
+        return dt.astimezone().isoformat()
+
+    def test_ritmo_uniforme(self):
+        # sesión: quedan 1 h 45 min de 5 h -> han pasado 195 min = 65 %
+        self.assertAlmostEqual(ritmo(self.iso(datetime(2026, 11, 2, 13, 20)), SESION_MIN, self.AHORA), 65.0)
+        # fuera de la ventana se queda en 0 / 100
+        self.assertEqual(ritmo(self.iso(datetime(2026, 11, 3, 13, 20)), SESION_MIN, self.AHORA), 0.0)
+        self.assertEqual(ritmo(self.iso(datetime(2026, 11, 2, 9, 0)), SESION_MIN, self.AHORA), 100.0)
+        self.assertIsNone(ritmo(None, SESION_MIN, self.AHORA))
+
+    def test_tramos(self):
+        self.assertEqual(tramo(16, 65), 'low')       # más de 25 puntos por debajo: sobra cuota
+        self.assertEqual(tramo(41, 55), 'ok')        # hasta 5 por delante (o por debajo): bien
+        self.assertEqual(tramo(40, 35), 'ok')        # 5 puntos por delante: todavía ok
+        self.assertEqual(tramo(41, 35), 'warn')      # 6 por delante: ámbar
+        self.assertEqual(tramo(87, 73.3), 'warn')    # 13,7 por delante
+        self.assertEqual(tramo(62, 35), 'danger')    # 27 por delante
+        self.assertEqual(tramo(100, 100), 'danger')  # ventana llena
+        # sin hora de reset: tramos fijos de Lion
+        self.assertEqual((tramo(30, None), tramo(50, None), tramo(80, None)), ('ok', 'warn', 'danger'))
+
+    def test_se_agota(self):
+        reset = self.iso(datetime(2026, 11, 6, 18, 0))   # restan 4 d 6 h 25 min de 7 d
+        self.assertEqual(dia_hora(se_agota(70, reset, SEMANA_MIN, self.AHORA)), 'Tue 15:41')
+        self.assertIsNone(se_agota(36, reset, SEMANA_MIN, self.AHORA))      # llegaría al reset
+        self.assertIsNone(se_agota(70, reset, SESION_MIN, self.AHORA))      # solo la semana
+        # menos de un día gastado: no se estima (una primera mañana intensa no cuenta)
+        self.assertIsNone(se_agota(40, self.iso(datetime(2026, 11, 8, 20, 0)), SEMANA_MIN, self.AHORA))
 
 
 class Cuentas(unittest.TestCase):
@@ -108,6 +144,7 @@ class Cuentas(unittest.TestCase):
         self.assertEqual((rb['email'], rb['sesion']['pct']), ('tok-b@perfil', 77))
         self.assertEqual(ra['semana']['pct'], 12)
         self.assertEqual(ra['plan'], 'Team · Max 5x')
+        self.assertFalse(ra['esta'])  # no es ~/.claude
         self.assertFalse(ra['mensual']['activo'])
 
     def test_sin_credenciales(self):
@@ -181,7 +218,7 @@ class Cuentas(unittest.TestCase):
             raise OSError('sin red')
         r = uso.consultar_cuenta({'alias': 'G', 'dir': d}, {}, caida)
         self.assertIsNone(r['sesion'])
-        self.assertIn('sin conexión', r['error'])
+        self.assertIn('no connection', r['error'])
         self.assertEqual(r['email'], 'g@x.es')  # identidad local de .claude.json
 
 
