@@ -32,6 +32,7 @@ RUTA_ICONO = os.path.join(AQUI, 'cronos-20.png')
 RUTA_ICO = os.path.join(AQUI, 'cronos.ico')
 APP_ID = 'Funidelia.Cronos'  # identidad propia en Windows: el botón de la barra usa el icono de Cronos, no el de Python
 EXSTYLE, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW = -20, 0x00040000, 0x00000080
+SW_MINIMIZE = 6
 RUTA_VENTANA = os.path.join(CARPETA_ESTADO, 'ventana.json')
 
 REFRESCO_MS = 60_000
@@ -253,7 +254,7 @@ class Widget:
         self.lbl_hora = tk.Label(titulo, text=self.actualizado, fg=C['chrome_muted'], bg=C['chrome2'], font=(FUENTE, 9))
         self.lbl_hora.pack(side='left', padx=10)
         arrastrables.append(self.lbl_hora)
-        for texto, accion, rojo in (('✕', self.cerrar, True), ('⟳', lambda: self.refrescar(True), False),
+        for texto, accion, rojo in (('✕', self.cerrar, True), ('–', self.minimizar, False), ('⟳', lambda: self.refrescar(True), False),
                                     ('📌', self.alternar_encima, False),
                                     ('☀' if self.tema == 'oscuro' else '🌙', self.alternar_tema, False)):
             b = tk.Label(titulo, text=texto, fg=C['chrome_muted'], bg=C['chrome2'], font=(FUENTE, 11), width=3, cursor='hand2')
@@ -728,6 +729,20 @@ class Widget:
             x1, y1 = max(x1, t.winfo_rootx() + t.winfo_width()), max(y1, t.winfo_rooty() + t.winfo_height())
         ImageGrab.grab(bbox=(x0, y0, x1, y1), all_screens=True).save(self.captura)
         self.cerrar()
+
+    def minimizar(self):
+        """A la barra de tareas (S-1076 le dio su botón). Una ventana sin marco no se minimiza con `iconify`,
+        así que se pide directamente a Windows; el botón de la barra de tareas la restaura."""
+        self.ocultar_tip()
+        try:
+            import ctypes
+            u32 = ctypes.windll.user32
+            u32.GetParent.restype = ctypes.c_void_p
+            u32.GetParent.argtypes = [ctypes.c_void_p]
+            u32.ShowWindow.argtypes = [ctypes.c_void_p, ctypes.c_int]
+            u32.ShowWindow(u32.GetParent(self.raiz.winfo_id()) or self.raiz.winfo_id(), SW_MINIMIZE)
+        except Exception:  # noqa: BLE001 - fuera de Windows no hay barra de tareas
+            self.raiz.iconify()
 
     def cerrar(self):
         self.ocultar_tip()

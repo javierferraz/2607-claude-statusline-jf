@@ -489,6 +489,26 @@ class PintadoEnSuSitio(unittest.TestCase):
         self.assertIsNot(w.cuerpo, cuerpo)
         self.assertEqual(len(w.marco.winfo_children()), 3)  # título, cuerpo y estado: sin elementos viejos apilados
 
+    @unittest.skipIf(sys.platform != 'win32', 'solo Windows')
+    def test_boton_minimizar_minimiza_y_se_restaura(self):
+        import ctypes
+        w, u32 = self.w, ctypes.windll.user32
+        u32.GetParent.restype = ctypes.c_void_p
+        u32.GetParent.argtypes = [ctypes.c_void_p]
+        u32.IsIconic.argtypes = [ctypes.c_void_p]
+        u32.ShowWindow.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        w.raiz.update()
+        hwnd = u32.GetParent(w.raiz.winfo_id()) or w.raiz.winfo_id()
+        boton = [x for x in self._todos(w.marco) if x.winfo_class() == 'Label' and x.cget('text') == '–']
+        self.assertEqual(len(boton), 1)               # el botón existe, una sola vez
+        self.assertFalse(u32.IsIconic(hwnd))
+        boton[0].event_generate('<Button-1>')
+        w.raiz.update()
+        self.assertTrue(u32.IsIconic(hwnd))           # queda minimizada
+        u32.ShowWindow(hwnd, 9)                       # SW_RESTORE: lo que hace el botón de la barra de tareas
+        w.raiz.update()
+        self.assertFalse(u32.IsIconic(hwnd))
+
     def _todos(self, w):
         yield w
         for h in w.winfo_children():

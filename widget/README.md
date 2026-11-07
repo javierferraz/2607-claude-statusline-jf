@@ -19,6 +19,7 @@ Copia la estética de Roaring Lion (su `DESIGN.md`, paleta «Piedra»); la inter
   fila lima original como registro.)
 - Pasa el ratón por una sesión o semana: panel con la explicación, el veredicto y las barras «Used» y
   «Even pace». ⚠ junto al nombre = datos antiguos (el motivo, al pasar el ratón).
+- **Botón – de la barra de título** minimiza Cronos a la barra de tareas (su botón allí la restaura).
 - **Casilla «Start with Windows»** (barra de estado): lanza Cronos al iniciar sesión, sin consola. Escribe la
   entrada `Cronos` en `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (el lanzador `lanzar-widget.vbs`).
   El check refleja el estado real: si lo apagas en el Administrador de tareas › Inicio, o mueves la carpeta del
