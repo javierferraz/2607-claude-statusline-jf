@@ -436,7 +436,7 @@ class PintadoEnSuSitio(unittest.TestCase):
         self.orig = cc.consultar_todas
         cc.consultar_todas = lambda cuentas, forzar=False: copy.deepcopy(self.datos)
         try:
-            self.w = cc.Widget(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cuentas.example.json'), 'x.png', 'oscuro')
+            self.w = cc.Widget(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cuentas.example.json'), 'x.png', 'oscuro', mini=False)
         except Exception as e:  # sin pantalla (CI): no hay nada que probar
             cc.consultar_todas = self.orig
             self.skipTest(f'sin Tk: {e}')
@@ -488,6 +488,53 @@ class PintadoEnSuSitio(unittest.TestCase):
         w.raiz.update()
         self.assertIsNot(w.cuerpo, cuerpo)
         self.assertEqual(len(w.marco.winfo_children()), 3)  # título, cuerpo y estado: sin elementos viejos apilados
+
+    def _textos(self):
+        return [x.cget('text') for x in self._todos(self.w.cuerpo) if x.winfo_class() == 'Label']
+
+    def test_modo_mini_semana_en_grafica_y_sesion_en_cifra(self):
+        w = self.w
+        normal = self._textos()
+        boton = [x for x in self._todos(w.marco) if x.winfo_class() == 'Label' and x.cget('text') == '⊟']
+        self.assertEqual(len(boton), 1)               # se entra desde la barra de título
+        boton[0].event_generate('<Button-1>')
+        w.raiz.update()
+        self.assertTrue(w.mini)
+        textos = self._textos()
+        self.assertEqual([t for t in textos if t.startswith('5h ')], ['5h 20%', '5h 60%'])  # una cifra por cuenta
+        self.assertNotIn('Session', textos)
+        self.assertEqual(textos.count('Week'), 2)
+        barras = [x for x in self._todos(w.cuerpo) if isinstance(x, self.cc.Barra)]
+        self.assertEqual(len(barras), 2)              # solo las de la semana: la sesión va sin barra
+        self.assertEqual(sorted(w.bloques), ['0-sem', '1-sem'])
+        self.assertLess(w.raiz.winfo_width(), 450)    # la mitad de ancho que la vista completa
+        cuerpo = w.cuerpo
+        self.datos[0]['sesion']['pct'] = 21           # una cifra nueva se pone en su sitio, sin rehacer la ventana
+        self.envia()
+        self.assertIs(w.cuerpo, cuerpo)
+        self.assertIn('5h 21%', self._textos())
+        self.datos[0]['sesion']['pct'] = 20
+
+        self.envia()
+        [x for x in self._todos(w.marco) if x.winfo_class() == 'Label' and x.cget('text') == '⊞'][0].event_generate('<Button-1>')
+        w.raiz.update()
+        self.assertFalse(w.mini)
+        self.assertEqual(self._textos(), normal)      # de vuelta a la vista completa, los mismos valores
+        self.assertGreater(w.raiz.winfo_width(), 700)
+
+    def test_modo_mini_se_recuerda(self):
+        w, cc = self.w, self.cc
+        with tempfile.TemporaryDirectory() as tmp:
+            orig = cc.RUTA_VENTANA, cc.CARPETA_ESTADO
+            cc.RUTA_VENTANA, cc.CARPETA_ESTADO = os.path.join(tmp, 'ventana.json'), tmp  # nunca la ventana.json real
+            try:
+                w.captura = None                      # en modo captura no se guarda la ventana
+                w.alternar_mini()
+                self.assertIs(json.loads(leer(cc.RUTA_VENTANA))['mini'], True)
+                self.assertIs(w._leer_ventana()['mini'], True)  # al abrir de nuevo, sale en mini
+            finally:
+                cc.RUTA_VENTANA, cc.CARPETA_ESTADO = orig
+                w.captura = 'x.png'
 
     @unittest.skipIf(sys.platform != 'win32', 'solo Windows')
     def test_boton_minimizar_minimiza_y_se_restaura(self):

@@ -19,6 +19,10 @@ Copia la estética de Roaring Lion (su `DESIGN.md`, paleta «Piedra»); la inter
   fila lima original como registro.)
 - Pasa el ratón por una sesión o semana: panel con la explicación, el veredicto y las barras «Used» y
   «Even pace». ⚠ junto al nombre = datos antiguos (el motivo, al pasar el ratón).
+- **Modo mini** (botón ⊟ de la barra de título; ⊞ vuelve a la vista completa; se recuerda): ventana de la mitad de
+  ancho con, por cuenta, el nombre, la **sesión de 5 h como una sola cifra** («5h 13%», en rojo solo al 100 %) y el
+  bloque **Week** de siempre (barra, raya de ritmo, color, reset o «at this pace, out…» y su panel al pasar el ratón).
+  Sin email, plan, leyenda ni casilla de arranque; ⟳ y ☀/🌙 quedan en la vista completa. `--mini` abre en mini.
 - **Botón – de la barra de título** minimiza Cronos a la barra de tareas (su botón allí la restaura).
 - **Casilla «Start with Windows»** (barra de estado): lanza Cronos al iniciar sesión, sin consola. Escribe la
   entrada `Cronos` en `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (el lanzador `lanzar-widget.vbs`).

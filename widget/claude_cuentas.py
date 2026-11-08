@@ -4,7 +4,7 @@ Estética de Roaring Lion (su DESIGN.md, paleta «Piedra»): chrome piedra, raya
 cada barra y color por ritmo. Interfaz en inglés, como Lion. Tema oscuro por defecto, claro disponible.
 
 Arranque sin consola:  pythonw claude_cuentas.py   (o lanzar-widget.vbs)
-Captura de prueba:     python claude_cuentas.py --captura salida.png [--tema claro] [--tip 1-ses] [--cuentas otro.json]
+Captura de prueba:     python claude_cuentas.py --captura salida.png [--tema claro] [--mini] [--tip 1-ses] [--cuentas otro.json]
 """
 import argparse
 import json
@@ -39,6 +39,8 @@ REFRESCO_MS = 60_000
 TICK_MS = 20_000
 ALTO_FILA = 84
 ANCHO_INTERIOR = 750  # 230 + 236 + 236 de columnas y 2 × 24 de separación
+ALTO_FILA_MINI = 64  # el bloque «Week» mide 52: 6 de aire arriba y abajo
+ANCHO_INTERIOR_MINI = 362  # modo mini: 110 (nombre y 5 h) + 16 de separación + 236 (el bloque «Week» de siempre)
 FUENTE = 'Segoe UI'
 
 # --- paleta de Roaring Lion (src/styles/base.css y layout.css) ---------------------------------
@@ -150,7 +152,7 @@ class Barra(tk.Canvas):
 
 
 class Widget:
-    def __init__(self, ruta_cuentas, captura=None, tema=None, tip=None):
+    def __init__(self, ruta_cuentas, captura=None, tema=None, tip=None, mini=None):
         self.ruta_cuentas, self.captura, self.tip_demo = ruta_cuentas, captura, tip
         self.datos, self.cola, self.ocupado = [], queue.Queue(), False
         self.tip_win = self.tip_id = self.tip_cierre = None
@@ -162,6 +164,7 @@ class Widget:
 
         pos = self._leer_ventana()
         self.tema = tema or (pos.get('tema') if pos.get('tema') in TEMAS else 'oscuro')
+        self.mini = bool(pos.get('mini', False)) if mini is None else mini  # modo mini: solo la semana, la sesión en cifra
         self.actualizado = ''
 
         self.raiz = tk.Tk()
@@ -242,7 +245,7 @@ class Widget:
             w.destroy()
         self.marco.config(bg=C['chrome'], highlightbackground=C['chrome_line'], highlightcolor=C['chrome_line'])
 
-        titulo = tk.Frame(self.marco, bg=C['chrome2'], height=36)
+        titulo = tk.Frame(self.marco, bg=C['chrome2'], height=30 if self.mini else 36)
         titulo.pack(fill='x')
         titulo.pack_propagate(False)
         arrastrables = [titulo]
@@ -254,11 +257,16 @@ class Widget:
         self.lbl_hora = tk.Label(titulo, text=self.actualizado, fg=C['chrome_muted'], bg=C['chrome2'], font=(FUENTE, 9))
         self.lbl_hora.pack(side='left', padx=10)
         arrastrables.append(self.lbl_hora)
-        for texto, accion, rojo in (('✕', self.cerrar, True), ('–', self.minimizar, False), ('⟳', lambda: self.refrescar(True), False),
-                                    ('📌', self.alternar_encima, False),
-                                    ('☀' if self.tema == 'oscuro' else '🌙', self.alternar_tema, False)):
+        botones = [('✕', self.cerrar, True), ('–', self.minimizar, False),
+                   ('⊞' if self.mini else '⊟', self.alternar_mini, False)]
+        if not self.mini:  # en el mini, refrescar y el tema quedan en la vista completa: no caben y no hacen falta de un vistazo
+            botones.append(('⟳', lambda: self.refrescar(True), False))
+        botones.append(('📌', self.alternar_encima, False))
+        if not self.mini:
+            botones.append(('☀' if self.tema == 'oscuro' else '🌙', self.alternar_tema, False))
+        for texto, accion, rojo in botones:
             b = tk.Label(titulo, text=texto, fg=C['chrome_muted'], bg=C['chrome2'], font=(FUENTE, 11), width=3, cursor='hand2')
-            b.pack(side='right', padx=1, pady=5)
+            b.pack(side='right', padx=1, pady=2 if self.mini else 5)
             self._boton(b, accion, rojo)
             if texto == '📌':
                 self.btn_encima = b
@@ -270,13 +278,14 @@ class Widget:
 
         self.cuerpo = tk.Frame(self.marco, bg=C['row_bg'])
         self.cuerpo.pack(fill='x')
-        self.estado = tk.Frame(self.marco, bg=C['chrome2'], height=24)
+        self.estado = tk.Frame(self.marco, bg=C['chrome2'], height=6 if self.mini else 24)
         self.estado.pack(fill='x')
         self.estado.pack_propagate(False)
         if self.datos:
             self.pintar()
         else:
-            tk.Label(self.cuerpo, text='Loading…', fg=C['muted'], bg=C['row_bg'], font=(FUENTE, 10), height=3, width=60).pack()
+            tk.Label(self.cuerpo, text='Loading…', fg=C['muted'], bg=C['row_bg'], font=(FUENTE, 10), height=3,
+                     width=30 if self.mini else 60).pack()
             self._pintar_estado()  # la casilla de arranque debe estar aunque aún no haya datos
 
     def _boton(self, b, accion, rojo):
@@ -356,7 +365,7 @@ class Widget:
     def pintar(self):
         C = self.C
         ahora = datetime.now()
-        estructura = (self.tema, tuple(self._forma(d) for d in self.datos))
+        estructura = (self.tema, self.mini, tuple(self._forma(d) for d in self.datos))
         if estructura == self._estructura:
             # Mismos elementos: solo cambian cifras, barras y cuentas atrás. Se actualizan en su sitio, sin crear
             # ni destruir nada (reconstruir ~60 elementos de Windows cada minuto se notaba como un parpadeo), y
@@ -377,7 +386,7 @@ class Widget:
         for i, d in enumerate(self.datos):
             if i:
                 tk.Frame(self.cuerpo, height=1, bg=C['line']).pack(fill='x')
-            self._fila(i, d, ahora)
+            (self._fila_mini if self.mini else self._fila)(i, d, ahora)
         self.cuerpo.pack(fill='x', before=self.estado)
         viejo.destroy()
         self._pintar_estado()
@@ -425,6 +434,52 @@ class Widget:
 
         self._ligar_hover(fila)
 
+    def _fila_mini(self, i, d, ahora):
+        """Fila del modo mini: nombre y la sesión de 5 h en una cifra; al lado, el bloque «Week» de la vista completa."""
+        C = self.C
+        bg = C['row_bg']
+        fila = tk.Frame(self.cuerpo, bg=bg)
+        fila.pack(fill='x')
+        dentro = tk.Frame(fila, bg=bg, height=ALTO_FILA_MINI, width=ANCHO_INTERIOR_MINI)
+        dentro.pack(fill='x', padx=16)
+        dentro.pack_propagate(False)
+
+        ident = tk.Frame(dentro, bg=bg, width=110, height=52)
+        ident.pack_propagate(False)
+        ident.pack(side='left', padx=(0, 16))
+        linea = tk.Frame(ident, bg=bg)
+        linea.pack(anchor='w', fill='x')
+        tk.Label(linea, text=d['nombre'], fg=C['ink'], bg=bg, font=(FUENTE, 10, 'bold')).pack(side='left')
+        if d.get('esta'):
+            punto = tk.Label(linea, text=' ●', fg=C['marca'], bg=bg, font=(FUENTE, 7), cursor='question_arrow')
+            punto.pack(side='left')
+            self._ayuda_simple(punto, 'The account Claude Code is signed in with on this PC')
+        con_datos = d['estado'] == 'ok' and bool(d['sesion'] or d['semana'])
+        if con_datos and d['error']:
+            aviso = tk.Label(linea, text=' ⚠', fg=C['warn_txt'], bg=bg, font=(FUENTE, 10), cursor='question_arrow')
+            aviso.pack(side='left')
+            self._ayuda_simple(aviso, self._texto_antiguo(d))
+
+        if not con_datos:
+            mensaje = tk.Label(dentro, text='⚠ No data', fg=C['warn_txt'], bg=bg, font=(FUENTE, 10), anchor='w')
+            mensaje.pack(side='left')
+            self._ayuda_simple(mensaje, d['error'] or 'no data yet')
+        else:
+            lbl_ses = tk.Label(ident, text='', bg=bg, font=(FUENTE, 10), anchor='w')
+            lbl_ses.pack(anchor='w', pady=(6, 0))
+
+            def actualizar_sesion(v, _d, _ahora):
+                """La sesión de 5 h como una sola cifra, sin barra; en rojo solo al llegar al límite, como el % completo."""
+                texto = '5h —' if v is None else f"5h {v['pct']}%"
+                color = TRAMOS['danger'] if v is not None and v['pct'] >= 100 else C['muted']
+                if lbl_ses.cget('text') != texto or lbl_ses.cget('fg') != color:
+                    lbl_ses.config(text=texto, fg=color)
+            actualizar_sesion(d['sesion'], d, ahora)
+            self.actualizadores.append((f'{i}-ses', actualizar_sesion))
+            self._bloque(dentro, bg, 'Week', d['semana'], SEMANA_MIN, f'{i}-sem', d, ahora)
+
+        self._ligar_hover(fila)
+
     def _bloque(self, padre, bg, titulo, v, span, id_, d, ahora):
         C = self.C
         f = tk.Frame(padre, bg=bg, width=236, height=52)
@@ -468,6 +523,8 @@ class Widget:
 
     def _pintar_estado(self):
         C = self.C
+        if self.mini:  # el mini acaba en una franja fina: sin recuento, leyenda ni casilla de arranque
+            return
         con = sum(1 for d in self.datos if d['estado'] == 'ok' and (d['sesion'] or d['semana']))
         antiguos = sum(1 for d in self.datos if d['estado'] == 'ok' and (d['sesion'] or d['semana']) and d['error'])
         activo = inicio_activo() if winreg is not None else False
@@ -667,6 +724,12 @@ class Widget:
         self._montar()
         self._guardar_ventana()
 
+    def alternar_mini(self):
+        """Vista mini ⇄ completa. Los datos son los mismos (no se consulta la API): solo se rehace la ventana."""
+        self.mini = not self.mini
+        self._montar()
+        self._guardar_ventana()
+
     def alternar_inicio(self):
         try:
             poner_inicio(not inicio_activo())
@@ -706,7 +769,7 @@ class Widget:
             os.makedirs(CARPETA_ESTADO, exist_ok=True)
             with open(RUTA_VENTANA, 'w', encoding='utf-8') as f:
                 json.dump({'x': self.raiz.winfo_x(), 'y': self.raiz.winfo_y(), 'encima': self.encima.get(),
-                           'tema': self.tema}, f)
+                           'tema': self.tema, 'mini': self.mini}, f)
         except OSError:
             pass
 
@@ -771,6 +834,7 @@ def main():
     p.add_argument('--cuentas', default=RUTA_CUENTAS, help='fichero de cuentas (por defecto widget/cuentas.json)')
     p.add_argument('--captura', help='guarda una captura PNG de la ventana y sale')
     p.add_argument('--tema', choices=sorted(TEMAS), help='tema (por defecto el último usado; oscuro la primera vez)')
+    p.add_argument('--mini', action='store_true', default=None, help='abre en modo mini (por defecto el último usado)')
     p.add_argument('--tip', help='con --captura, abre el panel de un bloque (p. ej. 0-ses, 1-sem)')
     a = p.parse_args()
     if not a.captura and not instancia_unica():
@@ -785,7 +849,7 @@ def main():
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
     except Exception:  # noqa: BLE001 - fuera de Windows no aplica
         pass
-    Widget(a.cuentas, a.captura, a.tema, a.tip).correr()
+    Widget(a.cuentas, a.captura, a.tema, a.tip, a.mini).correr()
 
 
 if __name__ == '__main__':
