@@ -104,6 +104,51 @@ def mezcla(a, b, t):
     return '#%02x%02x%02x' % tuple(round(p * (1 - t) + q * t) for p, q in zip(x, y))
 
 
+def monitores_windows():
+    """Rectángulos (izq, arriba, der, abajo) de todos los monitores, en las coordenadas de Tk; [] si no se pueden leer.
+
+    `winfo_screenwidth/height` de Tk son solo los del monitor principal: con dos pantallas no sirven para saber
+    dónde acaba el monitor en el que está el elemento."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        enum = ctypes.windll.user32.EnumDisplayMonitors
+        devolucion = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(wintypes.RECT), ctypes.c_void_p)
+        enum.argtypes = [ctypes.c_void_p, ctypes.c_void_p, devolucion, ctypes.c_void_p]
+        encontrados = []
+
+        def anotar(_h, _dc, rc, _d):
+            encontrados.append((rc.contents.left, rc.contents.top, rc.contents.right, rc.contents.bottom))
+            return 1
+        enum(None, None, devolucion(anotar), None)
+        return encontrados
+    except Exception:  # noqa: BLE001 - fuera de Windows o sin la API: se usa la pantalla principal de Tk
+        return []
+
+
+def ubicar_tip(ancla, tam, monitores, margen_abajo=40):
+    """Dónde poner el panel emergente: (x, y) en pantalla, dentro del monitor del elemento que lo abre.
+
+    `ancla` = (izq, arriba, ancho, alto) del elemento; `tam` = (ancho, alto) del panel; `monitores` = lista de
+    (izq, arriba, der, abajo). Va debajo del elemento y, si no cabe, encima; nunca fuera del monitor. El monitor
+    es el que contiene el centro del elemento (si ninguno, el más cercano)."""
+    izq, arriba, ancho_a, alto_a = ancla
+    ancho, alto = tam
+    cx, cy = izq + ancho_a / 2, arriba + alto_a / 2
+
+    def distancia(m):
+        dx = max(m[0] - cx, 0, cx - m[2])
+        dy = max(m[1] - cy, 0, cy - m[3])
+        return dx * dx + dy * dy
+    m_izq, m_arriba, m_der, m_abajo = min(monitores, key=distancia)
+    x, y = izq - 6, arriba + alto_a + 8
+    if y + alto > m_abajo - margen_abajo:
+        y = arriba - alto - 8
+    x = max(m_izq, min(x, m_der - ancho - 8))
+    y = max(m_arriba, min(y, m_abajo - alto))
+    return x, y
+
+
 _CHROME = dict(chrome='#413a34', chrome2='#524a43', chrome_ink='#f7f3ec', chrome_muted='#c6bcaf', chrome_line='#675f57')
 TEMAS = {
     'oscuro': dict(_CHROME, row_bg='#413a34', row_hover=mezcla('#413a34', '#f7f3ec', .06),
@@ -703,12 +748,10 @@ class Widget:
                      anchor='e').pack(side='left')
 
         win.update_idletasks()
-        x, y = f.winfo_rootx() - 6, f.winfo_rooty() + f.winfo_height() + 8
-        ancho, alto = win.winfo_reqwidth(), win.winfo_reqheight()
-        if y + alto > win.winfo_screenheight() - 40:
-            y = f.winfo_rooty() - alto - 8
-        x = max(0, min(x, win.winfo_screenwidth() - ancho - 8))
-        win.geometry(f'+{x}+{max(0, y)}')
+        monitores = monitores_windows() or [(0, 0, win.winfo_screenwidth(), win.winfo_screenheight())]
+        x, y = ubicar_tip((f.winfo_rootx(), f.winfo_rooty(), f.winfo_width(), f.winfo_height()),
+                          (win.winfo_reqwidth(), win.winfo_reqheight()), monitores)
+        win.geometry(f'+{x}+{y}')
 
     def ocultar_tip(self):
         if self.tip_win is not None:

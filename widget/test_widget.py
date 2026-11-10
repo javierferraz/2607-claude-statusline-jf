@@ -560,3 +560,71 @@ class PintadoEnSuSitio(unittest.TestCase):
         yield w
         for h in w.winfo_children():
             yield from self._todos(h)
+
+
+class UbicarTip(unittest.TestCase):
+    """El panel emergente se abre en el monitor del elemento que lo dispara, sin salirse de él (T-2026-11-10-03)."""
+    ANCHO, ALTO = 335, 260                                  # tamaño típico del panel
+    PRINCIPAL = (0, 0, 1920, 1080)
+    DERECHA = (1920, 0, 3840, 1080)                         # auxiliar a la derecha
+    IZQUIERDA = (-1600, 0, 0, 900)                          # auxiliar a la izquierda, más pequeña y con x negativa
+    DOS = [PRINCIPAL, DERECHA]
+    TRES = [IZQUIERDA, PRINCIPAL, DERECHA]
+
+    def ubicar(self, ancla, monitores):
+        from claude_cuentas import ubicar_tip
+        x, y = ubicar_tip(ancla, (self.ANCHO, self.ALTO), monitores)
+        return x, y
+
+    def dentro(self, x, y, m):
+        return m[0] <= x and x + self.ANCHO <= m[2] and m[1] <= y and y + self.ALTO <= m[3]
+
+    def test_disparador_en_el_auxiliar_de_la_derecha(self):   # el fallo: acababa en el principal
+        for ancla in ((2300, 300, 236, 52), (1925, 300, 236, 52), (3500, 300, 236, 52)):
+            x, y = self.ubicar(ancla, self.DOS)
+            self.assertTrue(self.dentro(x, y, self.DERECHA), (ancla, x, y))
+
+    def test_disparador_en_el_auxiliar_de_la_izquierda(self):  # x negativa: antes se clampaba a 0
+        for ancla in ((-1000, 300, 236, 52), (-1590, 300, 236, 52), (-250, 300, 236, 52)):
+            x, y = self.ubicar(ancla, self.TRES)
+            self.assertTrue(self.dentro(x, y, self.IZQUIERDA), (ancla, x, y))
+
+    def test_disparador_en_el_principal(self):
+        for ancla in ((100, 300, 236, 52), (900, 300, 236, 52), (1500, 300, 236, 52)):
+            for monitores in (self.DOS, self.TRES):
+                x, y = self.ubicar(ancla, monitores)
+                self.assertTrue(self.dentro(x, y, self.PRINCIPAL), (ancla, monitores, x, y))
+
+    def test_junto_al_borde_derecho_y_abajo_no_se_sale_del_monitor(self):
+        # pegado al borde derecho del principal: se queda en el principal (no salta al auxiliar contiguo)
+        x, y = self.ubicar((1700, 300, 236, 52), self.DOS)
+        self.assertTrue(self.dentro(x, y, self.PRINCIPAL))
+        # pegado al borde derecho del auxiliar y al borde de abajo: encima del elemento y dentro del monitor
+        x, y = self.ubicar((3600, 1000, 236, 52), self.DOS)
+        self.assertTrue(self.dentro(x, y, self.DERECHA), (x, y))
+        self.assertLess(y, 1000)                            # no cabía debajo: va encima
+        # auxiliar más bajo que el principal: el límite de abajo es el suyo, no el del principal
+        x, y = self.ubicar((-800, 700, 236, 52), self.TRES)
+        self.assertTrue(self.dentro(x, y, self.IZQUIERDA), (x, y))
+
+    def test_una_sola_pantalla_igual_que_antes(self):
+        """Con un monitor en (0, 0) el resultado es el de la fórmula anterior (pantalla principal de Tk)."""
+        def antes(ancla, sw=1920, sh=1080):
+            izq, arriba, aw, ah = ancla
+            x, y = izq - 6, arriba + ah + 8
+            if y + self.ALTO > sh - 40:
+                y = arriba - self.ALTO - 8
+            return max(0, min(x, sw - self.ANCHO - 8)), max(0, y)
+        for ancla in ((10, 200, 236, 52), (1800, 200, 236, 52), (600, 900, 236, 52), (0, 0, 236, 52), (1700, 1000, 236, 52)):
+            self.assertEqual(self.ubicar(ancla, [self.PRINCIPAL]), antes(ancla), ancla)
+
+    def test_centro_en_ningun_monitor_va_al_mas_cercano(self):
+        x, y = self.ubicar((5000, 300, 236, 52), self.DOS)   # fuera de todo: el más cercano es el auxiliar
+        self.assertTrue(self.dentro(x, y, self.DERECHA))
+
+    @unittest.skipIf(sys.platform != 'win32', 'solo Windows')
+    def test_monitores_de_windows_tienen_forma_de_rectangulo(self):
+        from claude_cuentas import monitores_windows
+        for izq, arriba, der, abajo in monitores_windows():
+            self.assertGreater(der, izq)
+            self.assertGreater(abajo, arriba)
